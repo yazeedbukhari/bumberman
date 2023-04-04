@@ -43,8 +43,12 @@
 #include <stdio.h>
 #include <time.h>
 
-// Begin part3.c code for Lab 7
+// Structure definitions
 
+// Function definitions: 
+void playBumber();
+
+// Bumberman code:
 
 volatile int pixel_buffer_start; // global variable
 
@@ -211,4 +215,8 @@ void draw_box(int x, int y, short int color) {
             plot_pixel(x + i, y + j, color);
         }
     }
+}
+
+void playBumber() {
+    
 }
