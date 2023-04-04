@@ -39,15 +39,35 @@
 #define FALSE 0
 #define TRUE 1
 
+// Game block (map) definitions:
+#define GRASS 0 
+#define STONE 1
+#define BRICK 2
+#define BOMB 3
+#define EXPLODE 4
+#define PLAYER1 5
+#define PLAYER2 6 
+
+// Includes
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
 
 // Structure definitions
+typedef struct {
+    int X; // x Location
+    int Y; // y location
+    int bombRadius; // default 1
+    int moveSpeed; // 
+    int bombNum; // max bombs player can place at once
+    int bombsPlaced; // 
+} Player;
 
 // Function definitions: 
 void playBumber();
 
+// global variables: 
+int mapArray[15][13]{};
 // Bumberman code:
 
 volatile int pixel_buffer_start; // global variable
