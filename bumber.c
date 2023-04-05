@@ -36,17 +36,23 @@
 #define BOX_LEN 2
 #define NUM_BOXES 8
 
-#define FALSE 0
-#define TRUE 1
+#define FALSE   0
+#define TRUE    1
 
 // Game block (map) definitions:
-#define GRASS 0 
-#define STONE 1
-#define BRICK 2
-#define BOMB 3
+#define GRASS   0 
+#define STONE   1
+#define BRICK   2
+#define BOMB    3
 #define EXPLODE 4
 #define PLAYER1 5
 #define PLAYER2 6 
+
+// Game State Definitions
+#define HOME    0
+#define ONEP    1
+#define TWOP    2
+#define OVER    3
 
 // Includes
 #include <stdlib.h>
@@ -68,6 +74,8 @@ void playBumber();
 
 // global variables: 
 int mapArray[15][13]{};
+int gameOver = FALSE;
+
 // Bumberman code:
 
 volatile int pixel_buffer_start; // global variable
@@ -113,31 +121,8 @@ int main(void)
         /* Erase any boxes and lines that were drawn in the last iteration */
         clear_screen(); //for now
 
-        // code for drawing the boxes and lines
-        for (int i = 0; i < NUM_BOXES; i++) {
-            draw_box(box[i][0], box[i][1], box[i][4]);
-
-            draw_line(box[i][0], box[i][1], box[(i+1)%NUM_BOXES][0], box[(i+1)%NUM_BOXES][1], box[i][4]);
-        }
-
-
-        // code for updating the locations of boxes
-
-        for (int i = 0; i < NUM_BOXES; i++) {
-            
-            if (box[i][0] == RESOLUTION_X-BOX_LEN || box[i][0] == 0) {
-                box[i][2] *= -1;
-            }
-
-            if (box[i][1] == RESOLUTION_Y-BOX_LEN || box[i][1] == 0) {
-                box[i][3] *= -1;
-            }
-
-            box[i][0] += box[i][2];
-            box[i][1] += box[i][3];
-
-
-        }
+        
+        drawBumber();
 
         wait_for_vsync(); // swap front and back buffers on VGA vertical sync
         pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
