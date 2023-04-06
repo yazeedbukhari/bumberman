@@ -93,11 +93,10 @@
 /* Screen size. */
 #define RESOLUTION_X 320
 #define RESOLUTION_Y 240
-
-/* Constants for animation */
-#define BOX_LEN 2
-#define NUM_BOXES 8
-
+#define GAME_RESOLUTION_X 304
+#define GAME_RESOLUTION_Y 240
+#define BLOCK_RES_X 19
+#define BLOCK_RES_Y 15
 #define FALSE   0
 #define TRUE    1
 
@@ -109,7 +108,7 @@
 #define EXPLODE 4
 #define PLAYER1 5
 #define PLAYER2 6 
-#define BLOCK_WIDTH 10 // 10 by 10 block
+#define BLOCK_WIDTH 16 // 16x16 block
 // Game State Definitions
 #define HOME    0
 #define ONEP    1
@@ -134,17 +133,85 @@ typedef struct {
 
 Player p1; // at most we have 2 players
 Player p2; 
-#define PLAYER_WIDTH 20
+
+#define PLAYER_WIDTH 16
 // 8 pixel wide player
 // Function definitions: 
 void playBumber();
-
+void plot_pixel(int x, int y, short int line_color);
+void clear_screen();
+void wait_for_vsync();
+void drawBlock(int x, int y, int blockType);
+void initializePlayer1();
+void initializeMap(); 
+void drawPlayer(Player player);
+void drawBumber();
 // global variables: 
-int mapArray[15][13] = {0};
+int mapArray[BLOCK_RES_X][BLOCK_RES_Y] = {0}; // 304 by 240 in terms of 16 x 16 blocks
+int fullMapArray[GAME_RESOLUTION_X][GAME_RESOLUTION_Y] = {0}; // Pixel by pixel
 int gameOver = FALSE;
 int multiPlayer = TRUE;
 int mainMenu = FALSE; // should be true. false for now
 int initializeFirst = TRUE; 
+
+// Sprites (images of blocks / player.. etc)
+
+const int grassSprite[16][16] = {
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+    {9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+};
+
+const int stoneSprite[16][16] = {
+    {35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953},
+    {35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953},
+    {35953, 35953, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 35953, 35953},
+    {35953, 35953, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 35953, 35953},
+    {35953, 35953, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 35953, 35953},
+    {35953, 35953, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 35953, 35953},
+    {35953, 35953, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 35953, 35953},
+    {35953, 35953, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 35953, 35953},
+    {35953, 35953, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 35953, 35953},
+    {35953, 35953, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 35953, 35953},
+    {35953, 35953, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 35953, 35953},
+    {35953, 35953, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 35953, 35953},
+    {35953, 35953, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 35953, 35953},
+    {35953, 35953, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 48567, 35953, 35953},
+    {35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953},
+    {35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953, 35953},
+};
+
+const int playerSprite[16][16] = {
+{9610, 9610, 9610, 9610, 9610, 65496, 65496, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+{9610, 9610, 9610, 9610, 9610, 65496, 65496, 65496, 9610, 9610, 9610, 65496, 61669, 61669, 9610, 9610},
+{9610, 9610, 9610, 9610, 61669, 61669, 61669, 61669, 61669, 9610, 9610, 9610, 9610, 61669, 61669, 9610},
+{9610, 9610, 9610, 61669, 61669, 65496, 65496, 65496, 65496, 61669, 9610, 9610, 9610, 9610, 61669, 9610},
+{9610, 9610, 61669, 61669, 65496, 65535, 65535, 61669, 65496, 65496, 61669, 9610, 9610, 9610, 61669, 61669},
+{9610, 61669, 61669, 61669, 65496, 61669, 61669, 61669, 65496, 65496, 61669, 9610, 61669, 61669, 61669, 65496},
+{9610, 61669, 61669, 61669, 65496, 65496, 65496, 65496, 65496, 65496, 65496, 61669, 61669, 61669, 61669, 65496},
+{9610, 61669, 61669, 61669, 61669, 65496, 65496, 65496, 65496, 61669, 65496, 61669, 61669, 61669, 61669, 61669},
+{9610, 61669, 61669, 61669, 61669, 65496, 65496, 65496, 65496, 61669, 65496, 61669, 61669, 61669, 61669, 61669},
+{9610, 61669, 61669, 61669, 65496, 65496, 65496, 65496, 65496, 65496, 65496, 61669, 61669, 61669, 61669, 65496},
+{9610, 61669, 61669, 61669, 65496, 61669, 61669, 61669, 65496, 65496, 61669, 9610, 61669, 61669, 61669, 65496},
+{9610, 9610, 61669, 61669, 65496, 65535, 65535, 61669, 65496, 65496, 61669, 9610, 9610, 9610, 61669, 61669},
+{9610, 9610, 9610, 61669, 61669, 65496, 65496, 65496, 65496, 61669, 9610, 9610, 9610, 9610, 9610, 9610},
+{9610, 9610, 9610, 9610, 61669, 61669, 61669, 61669, 61669, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+{9610, 9610, 9610, 9610, 9610, 65496, 65496, 65496, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+{9610, 9610, 9610, 9610, 9610, 65496, 65496, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610, 9610},
+};
 // Bumberman code:
 
 volatile int pixel_buffer_start; // global variable
@@ -174,12 +241,23 @@ void wait_for_vsync() {
     }
 }
 
-void draw_box(int x, int y, short int color) {
-    for (int i = 0; i < BOX_LEN; i++) {
-        for (int j = 0; j < BOX_LEN; j++) {
+void drawBlock(int x, int y, int blockType) {
+    // functions draws blocks e.g Grass.. etc. Depending on blocktype. 
+    int color = 0;
+    for (int i = 0; i < BLOCK_WIDTH; i++) {
+        for (int j = 0; j < BLOCK_WIDTH; j++) {
+            if (blockType == GRASS) {
+                color = grassSprite[i][j];
+            } else if (blockType == STONE) {
+                color = stoneSprite[i][j];
+            } else if (blockType == BRICK) {
+
+            }
             plot_pixel(x + i, y + j, color);
+            fullMapArray[x + i][y +j] = blockType; 
         }
     }
+
 }
 
 void playBumber() {
@@ -187,8 +265,8 @@ void playBumber() {
 }
 
 void initializePlayer1() {
-    p1.x = 10; // x Location
-    p1.y = 10; // y location
+    p1.x = 1 * BLOCK_WIDTH; // x Location
+    p1.y = 1 * BLOCK_WIDTH; // y location
     p1.bombRadius = 1; // default 1
     p1.bombNum = 1; // max bombs player can place at once
     p1.bombsPlaced = 0; // 
@@ -197,38 +275,55 @@ void initializePlayer1() {
 
 void drawPlayer(Player player) {
 // take in type player to determine where to draw.
-    for (int i = player.x; i < PLAYER_WIDTH; i++) {
-        for (int j = player.y; j < PLAYER_WIDTH; j++) {
-            plot_pixel(i, j, player.colour);           
+    for (int i = 0; i < PLAYER_WIDTH; i++) {
+        for (int j = 0; j < PLAYER_WIDTH; j++) {
+            plot_pixel(i + player.x, j + player.y, playerSprite[i][j]);           
         }   
     }
 }
 
 void drawBumber() {
+    clear_screen(); 
     if (initializeFirst == 1) {
         initializePlayer1();
+        initializeMap();
         if (multiPlayer) {
             // initialize player 2
         }
 
         initializeFirst = FALSE;
     }
-    // 320 by 240
-    for (int i = 0; i < RESOLUTION_X; i++) {
-        for (int j = 0; j < RESOLUTION_Y; j++) {
-            plot_pixel(i, j, GREEN);
+    // 304 by 240
+    for (int i = 0; i < GAME_RESOLUTION_X; i += BLOCK_WIDTH) {
+        for (int j = 0; j < GAME_RESOLUTION_Y; j+= BLOCK_WIDTH) {
+            drawBlock(i, j, mapArray[i / BLOCK_WIDTH][j / BLOCK_WIDTH]);
         }
     }
     drawPlayer(p1); 
 }
 
+void initializeMap() {
+    // everything is grass by default, so we should just add in blocks
+    // 
+    // initialize borders to be stone
+    for (int i = 0; i < BLOCK_RES_X; i++) {
+        mapArray[i][0] = STONE;
+        mapArray[i][BLOCK_RES_Y - 1] = STONE;
+    }
+    for (int j = 0; j < BLOCK_RES_Y; j++) {
+        mapArray[0][j] = STONE;
+        mapArray[BLOCK_RES_X - 1][j] = STONE;
+    }    
+    for (int i = 2; i < BLOCK_RES_X - 1; i+= 2) {
+        for (int j = 2; j < BLOCK_RES_Y - 1; j+= 2) {
+            mapArray[i][j] = STONE;
+        } 
+    }    
+}
 int main(void)
 {
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
     // declare other variables(not shown)
-    // initialize location and direction of rectangles(not shown)
-
-    int color[] = {WHITE, YELLOW, RED, GREEN, BLUE, CYAN, MAGENTA, GREY, PINK, ORANGE};
 
     /* set front pixel buffer to start of FPGA On-chip memory */
     *(pixel_ctrl_ptr + 1) = 0xC8000000; // first store the address in the 
@@ -247,7 +342,6 @@ int main(void)
     {
         /* Erase any boxes and lines that were drawn in the last iteration */
         clear_screen(); //for now
-
         if (multiPlayer == 1) {
         drawBumber();
 
