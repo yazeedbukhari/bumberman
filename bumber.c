@@ -572,6 +572,14 @@ void initializeMap() {
             }
         }
     }
+    // make the edges of player spawn a brick
+    // top left
+    mapArray[3][1] = BRICK;
+    mapArray[1][3] = BRICK;
+
+    // bottom right;
+    mapArray[GAME_RESOLUTION_X - 4][GAME_RESOLUTION_Y - 1] = BRICK;
+    mapArray[GAME_RESOLUTION_X - 1][GAME_RESOLUTION_Y - 4] = BRICK;
 }
 int main(void)
 {
