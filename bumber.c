@@ -109,11 +109,17 @@
 #define PLAYER1 5
 #define PLAYER2 6 
 #define BLOCK_WIDTH 16 // 16x16 block
+
 // Game State Definitions
 #define HOME    0
 #define ONEP    1
 #define TWOP    2
 #define OVER    3
+
+//extra defs for no magic numbers
+#define maxInterrupt    15
+#define PLAYER_WIDTH    11
+// 8 pixel wide player
 
 // Includes
 #include <stdlib.h>
@@ -134,8 +140,6 @@ typedef struct {
 Player p1; // at most we have 2 players
 Player p2; 
 
-#define PLAYER_WIDTH 11
-// 8 pixel wide player
 // Function definitions: 
 void playBumber();
 void plot_pixel(int x, int y, short int line_color);
@@ -143,16 +147,25 @@ void clear_screen();
 void wait_for_vsync();
 void drawBlock(int x, int y, int blockType);
 void initializePlayer1();
+void initializePlayer2();
 void initializeMap(); 
 void drawPlayer(Player player);
 void drawBumber();
-// global variables: 
+void keyboard_input();
+
+// global arrays: 
 int mapArray[BLOCK_RES_X][BLOCK_RES_Y] = {0}; // 304 by 240 in terms of 16 x 16 blocks
 int fullMapArray[GAME_RESOLUTION_X][GAME_RESOLUTION_Y] = {0}; // Pixel by pixel
+int keyInterrupts[maxInterrupt] = {0};
+
+// global variables:
+// i dont think these are necessary since we already defined gamestates, we on the FSM grind
 int gameOver = FALSE;
 int multiPlayer = TRUE;
 int mainMenu = FALSE; // should be true. false for now
 int initializeFirst = TRUE; 
+
+int gameState = /*HOME*/ ONEP; //should initailzie at home
 
 // Sprites (images of blocks / player.. etc)
 
@@ -433,8 +446,7 @@ const int explosionSprite[BLOCK_WIDTH][BLOCK_WIDTH] = {
 
 volatile int pixel_buffer_start; // global variable
 
-void plot_pixel(int x, int y, short int line_color)
-{
+void plot_pixel(int x, int y, short int line_color) {
     *(short int *)(pixel_buffer_start + (y << 10) + (x << 1)) = line_color;
 }
 
@@ -489,6 +501,16 @@ void initializePlayer1() {
     p1.bombsPlaced = 0; // 
     p1.colour = ORANGE; 
 }
+
+void initializePlayer2() {
+    p2.x = 2 * BLOCK_WIDTH; // x Location
+    p2.y = 1 * BLOCK_WIDTH; // y location
+    p2.bombRadius = 1; // default 1
+    p2.bombNum = 1; // max bombs player can place at once
+    p2.bombsPlaced = 0; // 
+    p2.colour = BLUE; 
+}
+
 void drawPlayer(Player player) {
 // take in type player to determine where to draw.
     for (int i = 0; i < PLAYER_WIDTH; i++) {
@@ -517,11 +539,12 @@ void drawHome()  {
 
 void drawBumber() {
     clear_screen(); 
-    if (initializeFirst == 1) {
+    if (initializeFirst == TRUE) {
         initializePlayer1();
         initializeMap();
-        if (multiPlayer) {
+        if (gameState == TWOP) {
             // initialize player 2
+            initializePlayer2();
         }
 
         initializeFirst = FALSE;
@@ -533,6 +556,7 @@ void drawBumber() {
         }
     }
     drawPlayer(p1); 
+    if (gameState == TWOP) drawPlayer(p2);
 }
 
 void initializeMap() {
@@ -581,10 +605,29 @@ void initializeMap() {
     mapArray[GAME_RESOLUTION_X - 4][GAME_RESOLUTION_Y - 1] = BRICK;
     mapArray[GAME_RESOLUTION_X - 1][GAME_RESOLUTION_Y - 4] = BRICK;
 }
-int main(void)
-{
+
+void keyboard_input() {
+    volatile int *PS2 = (int *) PS2_BASE;
+    
+    int i = 0;
+    // reads multiple inputs, maxInterrupt
+    while (*PS2 & 0x8000) {
+        keyInterrupts[i] = (*PS2 & 0xFF);
+        i++;
+    }
+    // to clear out the rest 
+    for (int j = i; j < maxInterrupt; j++) {
+        keyInterrupts[j] = 0x0;
+    }
+
+    return;
+}
+
+int main(void) {
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
+    
     // declare other variables(not shown)
+
 
     /* set front pixel buffer to start of FPGA On-chip memory */
     *(pixel_ctrl_ptr + 1) = 0xC8000000; // first store the address in the 
@@ -603,6 +646,33 @@ int main(void)
     {
         /* Erase any boxes and lines that were drawn in the last iteration */
         clear_screen(); //for now
+        
+        
+        switch (gameState) { // swtich looks better than too many if elses
+            case HOME:
+                drawHome();
+                break;
+            case ONEP:
+                keyboard_input();
+                for (int i = 0; i < maxInterrupt; i++) {
+                    if (keyInterrupts[i] == 0x29) {
+                        gameState = TWOP;
+                        initializeFirst = TRUE;
+                    }
+                    else if (keyInterrupts[i] == 0) break;
+                }
+                drawBumber();
+                break;
+            case TWOP:
+                keyboard_input();
+                drawBumber();
+                break;
+            case OVER:
+                break;
+        }
+         // commented out to not mess with drawing code for now
+        
+        /*
         if (gameOver) {
 
         }
@@ -610,6 +680,7 @@ int main(void)
             drawBumber();
         } else
             drawHome(); 
+        */
         wait_for_vsync(); // swap front and back buffers on VGA vertical sync
         pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
     }
