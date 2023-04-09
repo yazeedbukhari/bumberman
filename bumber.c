@@ -243,6 +243,7 @@ int keyInterrupts[maxInterrupt] = {0};
 // i dont think these are necessary since we already defined gamestates, we on the FSM grind
 int brickChance = 0;
 int initializeFirst = TRUE; 
+int defaultMS = 1; //default movespeed is 1 pixel
 
 int gameState = HOME; //should initailzie at home
 
@@ -598,6 +599,7 @@ void initializePlayer1() {
     p1.bombID[0] = PLAYER1BOMB_ONE;
     p1.bombID[1] = PLAYER1BOMB_TWO;
     p1.bombID[2] = PLAYER1BOMB_THREE;
+    p1.moveSpeed = defaultMS;
     Player *player1Insert = &p1;
     updateMiddlePlayer(player1Insert);
     p1.BlockX = calculateBlockX(p1.x);
@@ -622,6 +624,7 @@ void initializePlayer2() {
     p2.bombID[0] = PLAYER2BOMB_ONE;
     p2.bombID[1] = PLAYER2BOMB_TWO;
     p2.bombID[2] = PLAYER2BOMB_THREE;
+    p2.moveSpeed = defaultMS;
     Player *player2Insert = &p2;
     updateMiddlePlayer(player2Insert); 
     p2.BlockX = calculateBlockX(p2.x);
@@ -667,23 +670,25 @@ int checkLegalMove(int playerX, int playerY, int changeX, int changeY, Player pl
 }
 
 void updatePlayer(Player *player, int changeX, int changeY) {
-    int legalMove = TRUE; 
-    
-    for (int i = 0; i < PLAYER_WIDTH; i += PLAYER_WIDTH - 1) {
-        for (int j = 0; j < PLAYER_WIDTH; j += PLAYER_WIDTH - 1) {
-            if (checkLegalMove(player->x + i, player->y + j, changeX, changeY, *player) == FALSE){
-                legalMove = FALSE;
+    for (int moveSpd = player->moveSpeed; moveSpd > 0; moveSpd --) {
+        int legalMove = TRUE; 
+        for (int i = 0; i < PLAYER_WIDTH; i += PLAYER_WIDTH - 1) {
+            for (int j = 0; j < PLAYER_WIDTH; j += PLAYER_WIDTH - 1) {
+                if (checkLegalMove(player->x + i, player->y + j, changeX * moveSpd, changeY * moveSpd, *player) == FALSE){
+                    legalMove = FALSE;
+                }
             }
+        }
+        if (legalMove == TRUE) {
+            player->x += changeX * moveSpd;
+            player->y += changeY * moveSpd; 
+            updateMiddlePlayer(player);
+            updatePlayerBlock(player);
+            break; 
         }
     }
 
 
-    if (legalMove == TRUE) {
-        player->x += changeX;
-        player->y += changeY; 
-        updateMiddlePlayer(player);
-        updatePlayerBlock(player);
-    }
 }
 
 void drawPlayer(Player *player) {
