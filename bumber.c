@@ -109,7 +109,7 @@
 #define PLAYER1 5
 #define PLAYER2 6 
 #define BLOCK_WIDTH 16 // 16x16 block
-
+#define HALF_OF_PLAYER 5 // 11 x 11 player, 1 + 5 = 6 makes the middle
 // Game State Definitions
 #define HOME    0
 #define ONEP    1
@@ -135,6 +135,10 @@ typedef struct {
     int bombNum; // max bombs player can place at once
     int bombsPlaced; // 
     int colour; // colour of player
+    int middleX; // middle of player. gonna be x + HALF_OF_PLAYER
+    int middleY;
+    int curBlockX; // the x of the current block player is on
+    int curBlockY; 
 } Player;
 
 Player p1; // at most we have 2 players
@@ -152,7 +156,9 @@ void initializeMap();
 void drawPlayer(Player player);
 void drawBumber();
 void keyboard_input();
-
+int calculateBlockX(); // given an x in pixels, returns x address in block
+int calculateBlockY(); // given an y in pixels, returns y address in block
+void updateMiddlePlayer(Player player); // updates middle x and y of player
 // global arrays: 
 int mapArray[BLOCK_RES_X][BLOCK_RES_Y] = {0}; // 304 by 240 in terms of 16 x 16 blocks
 int fullMapArray[GAME_RESOLUTION_X][GAME_RESOLUTION_Y] = {0}; // Pixel by pixel
@@ -165,7 +171,7 @@ int multiPlayer = TRUE;
 int mainMenu = FALSE; // should be true. false for now
 int initializeFirst = TRUE; 
 
-int gameState = /*HOME*/ ONEP; //should initailzie at home
+int gameState = HOME; //should initailzie at home
 
 // Sprites (images of blocks / player.. etc)
 
@@ -499,23 +505,47 @@ void initializePlayer1() {
     p1.bombRadius = 1; // default 1
     p1.bombNum = 1; // max bombs player can place at once
     p1.bombsPlaced = 0; // 
-    p1.colour = ORANGE; 
+    p1.colour = RED; 
+    updateMiddlePlayer(p1);
 }
 
 void initializePlayer2() {
-    p2.x = 2 * BLOCK_WIDTH; // x Location
-    p2.y = 1 * BLOCK_WIDTH; // y location
+    p2.x = (GAME_RESOLUTION_X) - 2 * BLOCK_WIDTH + 3; // x Location
+    p2.y = (GAME_RESOLUTION_Y) - 2 * BLOCK_WIDTH + 3; // y location
     p2.bombRadius = 1; // default 1
     p2.bombNum = 1; // max bombs player can place at once
     p2.bombsPlaced = 0; // 
     p2.colour = BLUE; 
+    updateMiddlePlayer(p2);
+}
+
+void updateMiddlePlayer(Player player) {
+    player.middleX = player.x + HALF_OF_PLAYER;
+    player.middleY = player.y + HALF_OF_PLAYER;
+}
+int checkLegalMove(Player player, int changeX, int changeY) {
+    int legal = TRUE;
+    int xLoc = player.x + changeX;
+    int yLoc = player.y + changeY;
+    if (fullMapArray[xLoc][yLoc] == BRICK || fullMapArray[xLoc][yLoc] == STONE) {
+        return false;
+    }
+}
+
+void updatePlayer(Player player, int changeX, int changeY) {
+    player.x += changeX;
+    player.y +=changeY; 
+    updateMiddlePlayer(player);
 }
 
 void drawPlayer(Player player) {
 // take in type player to determine where to draw.
     for (int i = 0; i < PLAYER_WIDTH; i++) {
         for (int j = 0; j < PLAYER_WIDTH; j++) {
-            plot_pixel(i + player.x, j + player.y, playerOneSprite[j][i]);           
+            if (player.colour == RED) // p1
+                plot_pixel(i + player.x, j + player.y, playerOneSprite[j][i]); 
+            else // p2
+                plot_pixel(i + player.x, j + player.y, playerTwoSprite[j][i]); 
         }   
     }
 }
@@ -536,6 +566,13 @@ void drawHome()  {
 //         }   
 //     }
 // }
+
+int calculateBlockX(int x){
+    return (x / BLOCK_WIDTH);
+} // given an x in pixels, returns x address in block
+int calculateBlockY(int y){
+    return (y / BLOCK_WIDTH);
+} // given an y in pixels, returns y address in block
 
 void drawBumber() {
     clear_screen(); 
@@ -562,6 +599,11 @@ void drawBumber() {
 void initializeMap() {
     // everything is grass by default, so we should just add in blocks
     // 
+    for (int i = 0; i < BLOCK_RES_X; i++){
+        for (int j = 0; j < BLOCK_RES_Y; j++){
+            mapArray[i][j] = GRASS; 
+        }
+    }
     // initialize borders to be stone
     for (int i = 0; i < BLOCK_RES_X; i++) {
         mapArray[i][0] = STONE;
@@ -650,17 +692,18 @@ int main(void) {
         
         switch (gameState) { // swtich looks better than too many if elses
             case HOME:
-                drawHome();
-                break;
-            case ONEP:
                 keyboard_input();
+                drawHome();
                 for (int i = 0; i < maxInterrupt; i++) {
                     if (keyInterrupts[i] == 0x29) {
                         gameState = TWOP;
                         initializeFirst = TRUE;
+                        break;
                     }
                     else if (keyInterrupts[i] == 0) break;
                 }
+                break;
+            case ONEP:
                 drawBumber();
                 break;
             case TWOP:
