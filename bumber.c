@@ -2649,7 +2649,7 @@ int main(void) {
                         gameState = TWOP;
                         initializeFirst = TRUE;
                         brickChance = 2; 
-                        clear_screen(); 
+                        // clear_screen(); 
                         break;
                     }
                     else if (keyInterrupts[i] == 0) break;
@@ -2702,7 +2702,7 @@ int main(void) {
                 drawOver(); // different victory screens
                 for (int i = 0; i < maxInterrupt; i++) {
                     if (keyInterrupts[i] == KEY_SPACE) {
-                        clear_screen(); 
+                        // clear_screen(); 
                         gameState = HOME;
                         break;
                     }
