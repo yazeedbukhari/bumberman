@@ -132,8 +132,10 @@
 #define PLAYER_WIDTH 11
 // 11x11 player
 #define MAX_BOMBS 10
+#define MAX_EXPLOSIONS 20
 #define BOMB_TIMER 15
 #define BOMB_INTERVALS 3
+#define EXPLOSION_TIMER 3
  // 3 different stages of bomb
 // 8 pixel wide player
 // keyboard definitions
@@ -162,6 +164,7 @@
 #include <time.h>
 
 // Structure definitions
+// Could have made a bomb struct
 typedef struct {
     int x; // x Location
     int y; // y location
@@ -186,7 +189,19 @@ typedef struct {
 Player p1; // at most we have 2 players
 Player p2; 
 
+typedef struct {
+    // at most we are going to have BLOCK_RES_X radius explosion
+    int size;
+    int X_BLOCKS[BLOCK_RES_X];
+    int Y_BLOCKS[BLOCK_RES_X]; 
+    int timer; 
+} Explosion;
+int numExplosions = 0;
+Explosion explosions[MAX_EXPLOSIONS];
+
 // Function definitions: 
+void initializeExplosionStruct(Explosion *explosion);
+void initializeExplosion();
 void playBumber();
 void plot_pixel(int x, int y, short int line_color);
 void clear_screen();
@@ -205,6 +220,7 @@ void checkBombs(Player *player);
 void placeBomb(Player *player); 
 void updatePlayer(Player *player, int changeX, int changeY); // updates everything about player
 void updatePlayerBlock(Player *player); 
+void initalizeExplosion();
 int checkLegalMove(int playerX, int playerY, int changeX, int changeY, int middleX, int middleY);
 // global arrays: 
 int mapArray[BLOCK_RES_X][BLOCK_RES_Y] = {0}; // 304 by 240 in terms of 16 x 16 blocks
@@ -611,17 +627,20 @@ void updateMiddlePlayer(Player *player) {
 int checkLegalMove(int playerX, int playerY, int changeX, int changeY, int middleX, int middleY) {
     int legal = TRUE;
 
-    if (fullMapArray[playerX][playerY] == BRICK || fullMapArray[playerX][playerY] == STONE) {
+    if (fullMapArray[playerX][playerY] == BRICK) {
         legal = FALSE;
-    } else if (fullMapArray[playerX][playerY] == PLAYER1BOMB_ONE || fullMapArray[playerX][playerY] == PLAYER2BOMB_ONE 
-                || fullMapArray[playerX][playerY] == PLAYER1BOMB_TWO || fullMapArray[playerX][playerY] == PLAYER2BOMB_TWO
-                || fullMapArray[playerX][playerY] == PLAYER1BOMB_THREE || fullMapArray[playerX][playerY] == PLAYER2BOMB_THREE) {
+    } else if (fullMapArray[playerX][playerY] == STONE) {
+        legal = FALSE;
+    }
+    // } else if (fullMapArray[playerX][playerY] == PLAYER1BOMB_ONE || fullMapArray[playerX][playerY] == PLAYER2BOMB_ONE 
+    //             || fullMapArray[playerX][playerY] == PLAYER1BOMB_TWO || fullMapArray[playerX][playerY] == PLAYER2BOMB_TWO
+    //             || fullMapArray[playerX][playerY] == PLAYER1BOMB_THREE || fullMapArray[playerX][playerY] == PLAYER2BOMB_THREE) {
 
-        if (fullMapArray[playerX][playerY] == fullMapArray[middleX][middleY]) {
+    //     if (fullMapArray[playerX][playerY] == fullMapArray[middleX][middleY]) {
 
-        } else
-            legal = FALSE;
-    } 
+    //     } else
+    //         legal = FALSE;
+    // } 
     return legal; 
 }
 
@@ -645,16 +664,15 @@ void updatePlayer(Player *player, int changeX, int changeY) {
     int middleX = player->middleX;
     int middleY = player->middleY;
 
-    // if (checkLegalMove(xLoc4, yLoc4, changeX, changeY, middleX, middleY) == TRUE &&
-    //     checkLegalMove(xLoc3, yLoc3, changeX, changeY, middleX, middleY) == TRUE &&
-    //     checkLegalMove(xLoc2, yLoc2, changeX, changeY, middleX, middleY) == TRUE &&
-    //     checkLegalMove(xLoc1, yLoc1, changeX, changeY, middleX, middleY) == TRUE) {
-            
+    if (checkLegalMove(xLoc4, yLoc4, changeX, changeY, middleX, middleY) == TRUE &&
+        checkLegalMove(xLoc3, yLoc3, changeX, changeY, middleX, middleY) == TRUE &&
+        checkLegalMove(xLoc2, yLoc2, changeX, changeY, middleX, middleY) == TRUE &&
+        checkLegalMove(xLoc1, yLoc1, changeX, changeY, middleX, middleY) == TRUE) {
         player->x += changeX;
         player->y += changeY; 
         updateMiddlePlayer(player);
         updatePlayerBlock(player);
-    // }
+    }
 }
 
 void drawPlayer(Player player) {
@@ -698,6 +716,7 @@ void drawBumber() {
     if (initializeFirst == TRUE) {
         initializePlayer1();
         initializeMap();
+        initializeExplosion(); 
         if (gameState == TWOP) {
             // initialize player 2
             initializePlayer2();
@@ -715,6 +734,22 @@ void drawBumber() {
     if (gameState == TWOP) 
         drawPlayer(p2);
 }
+
+void initializeExplosionStruct(Explosion *explosion) {
+    explosion->size = 0;
+    for (int i = 0; i < BLOCK_RES_X; i++){
+        explosion->X_BLOCKS[i] = NO_BOMB;
+        explosion->Y_BLOCKS[i] = NO_BOMB;
+    }
+}
+void initializeExplosion() {
+    for (int i = 0; i < MAX_EXPLOSIONS; i++)  {
+        Explosion temp;
+        initializeExplosionStruct(&temp);
+        explosions[i] = temp; 
+    }
+}
+
 
 void initializeMap() {
     // everything is grass by default, so we should just add in blocks
@@ -812,7 +847,22 @@ void checkBombs(Player *player) {
     for (int i = 0; i < player->bombsPlaced; i++) {
         if (player->bombTimer[i] == 0)  {
             // EXPLOSION TIME
+            // theoretically only the first, when i = 0, will this ever happen
+            explosion(player->bombArrX[i], player->bombArrY[i], player->bombRadius);
+
+
+            // basically popping the front of the array
+            for (int i = 0; i < MAX_BOMBS - 1; i++) {
+                player->bombArrX[i] = player->bombArrX[i + 1]; // shift each element to the left
+                player->bombArrY[i] = player->bombArrY[i + 1]; // shift each element to the left
+            }
+            player->bombArrX[MAX_BOMBS - 1] = NO_BOMB; // set last element to zero or null
+            player->bombArrY[MAX_BOMBS - 1] = NO_BOMB; // set last element to zero or null
+
+            // decrement bombsplaced
+            player->bombsPlaced--; 
             
+
         } else if (player->bombTimer[i] == BOMB_TIMER - (BOMB_TIMER / BOMB_INTERVALS)) {
             if (player->colour == RED) {
                 mapArray[player->bombArrX[i]][player->bombArrY[i]] = PLAYER1BOMB_TWO; 
@@ -832,12 +882,90 @@ void checkBombs(Player *player) {
     }
 }
 
+void explosion(int startingX, int startingY, int radius) {
+    // starting x block and starting y block
+    int numBlocks = 1;
+    mapArray[startingX][startingY] = EXPLODE; 
+    numExplosions++;
+    Explosion explosionInsert; 
+    explosionInsert.X_BLOCKS[numBlocks - 1] = startingX;
+    explosionInsert.Y_BLOCKS[numBlocks - 1] = startingY; 
+    // down
+    for (int i = 1; i <= radius; i++) {
+        int newY = startingY + i; 
+        if (mapArray[startingX][newY] == GRASS || mapArray[startingX][newY] == BRICK) {
+            numBlocks++; 
+            explosionInsert.X_BLOCKS[numBlocks - 1] = startingX;
+            explosionInsert.Y_BLOCKS[numBlocks - 1] = newY;
+            mapArray[startingX][newY] = EXPLODE; 
+            if (mapArray[startingX][newY] == BRICK){
+                // we broke the brick now we just stop. 
+                break; 
+            }
+        } else
+            break;
+    }
+    // left
+    for (int i = 1; i <= radius; i++) {
+        int newX = startingX - i; 
+            if (mapArray[newX][startingY] == GRASS || mapArray[newX][startingY] == BRICK) {
+            numBlocks++; 
+            explosionInsert.X_BLOCKS[numBlocks - 1] = newX;
+            explosionInsert.Y_BLOCKS[numBlocks - 1] = startingY;
+            mapArray[newX][startingY] = EXPLODE; 
+            if (mapArray[newX][startingY] == BRICK){
+                // we broke the brick now we just stop. 
+                break; 
+            }
+        } else
+            break;
+    }
+    // up
+    for (int i = 1; i <= radius; i++) {
+        int newY = startingY - i; 
+        if (mapArray[startingX][newY] == GRASS || mapArray[startingX][newY] == BRICK) {
+            numBlocks++; 
+            explosionInsert.X_BLOCKS[numBlocks - 1] = startingX;
+            explosionInsert.Y_BLOCKS[numBlocks - 1] = newY;
+            mapArray[startingX][newY] = EXPLODE; 
+            if (mapArray[startingX][newY] == BRICK){
+                // we broke the brick now we just stop. 
+                break; 
+            }
+        } else
+            break;
+    }
+    // right
+    for (int i = 1; i <= radius; i++) {
+        int newX = startingX + i; 
+            if (mapArray[newX][startingY] == GRASS || mapArray[newX][startingY] == BRICK) {
+            numBlocks++; 
+            explosionInsert.X_BLOCKS[numBlocks - 1] = newX;
+            explosionInsert.Y_BLOCKS[numBlocks - 1] = startingY;
+            mapArray[newX][startingY] = EXPLODE; 
+            if (mapArray[newX][startingY] == BRICK){
+                // we broke the brick now we just stop. 
+                break; 
+            }
+        } else
+            break;
+    }
+    explosionInsert.size = numBlocks; 
+    explosions[numExplosions - 1] = explosionInsert;
+}
 void deleteFirst(int arr[], int size) {
     for (int i = 0; i < size - 1; i++) {
         arr[i] = arr[i + 1]; // shift each element to the left
     }
     arr[size - 1] = NO_BOMB; // set last element to zero or null
 }
+
+// void deleteFirstExplosion(Explosion arr[], int size) {
+//     for (int i = 0; i < size - 1; i++) {
+//         arr[i] = arr[i + 1]; // shift each element to the left
+//     }
+//     arr[size - 1] = NO_BOMB; // set last element to zero or null
+// }
 
 int main(void) {
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
