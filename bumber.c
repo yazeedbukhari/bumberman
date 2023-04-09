@@ -131,6 +131,8 @@
 #define GAMEOVER_P1 0
 #define GAMEOVER_P2 1
 #define GAMEOVER_DRAW 2
+#define GAMEOVER_SOLO_WIN 3
+#define GAMEOVER_SOLO_LOSE 4
 
 int gameoverState = 0; 
 //extra defs for no magic numbers
@@ -174,6 +176,8 @@ int gameoverState = 0;
 typedef struct {
     int x; // x Location
     int y; // y location
+    int prevX;
+    int prevY;
     int bombRadius; // default 1
     int moveSpeed; // 
     int bombNum; // max bombs player can place at once
@@ -183,7 +187,7 @@ typedef struct {
     int middleY;
     int curBlockX; // the x of the current block player is on
     int curBlockY; 
-    int bombID; 
+    int bombID[BOMB_INTERVALS]; 
     int BlockX; // block location
     int BlockY;
     int bombArrX[MAX_BOMBS]; // stores X location of bomb.
@@ -217,7 +221,7 @@ void drawBlock(int x, int y, int blockType);
 void initializePlayer1();
 void initializePlayer2();
 void initializeMap(); 
-void drawPlayer(Player player);
+void drawPlayer(Player *player);
 void drawBumber();
 void keyboard_input();
 int calculateBlockX(); // given an x in pixels, returns x address in block
@@ -229,7 +233,7 @@ void placeBomb(Player *player);
 void updatePlayer(Player *player, int changeX, int changeY); // updates everything about player
 void updatePlayerBlock(Player *player); 
 void initalizeExplosion();
-int checkLegalMove(int playerX, int playerY, int changeX, int changeY, int middleX, int middleY);
+int checkLegalMove(int playerX, int playerY, int changeX, int changeY, Player player);
 // global arrays: 
 int mapArray[BLOCK_RES_X][BLOCK_RES_Y] = {0}; // 304 by 240 in terms of 16 x 16 blocks
 int fullMapArray[GAME_RESOLUTION_X][GAME_RESOLUTION_Y] = {0}; // Pixel by pixel
@@ -237,9 +241,7 @@ int keyInterrupts[maxInterrupt] = {0};
 
 // global variables:
 // i dont think these are necessary since we already defined gamestates, we on the FSM grind
-int gameOver = FALSE;
-int multiPlayer = TRUE;
-int mainMenu = FALSE; // should be true. false for now
+int brickChance = 0;
 int initializeFirst = TRUE; 
 
 int gameState = HOME; //should initailzie at home
@@ -585,13 +587,17 @@ void playBumber() {
 }
 
 void initializePlayer1() {
-    p1.x = 1 * BLOCK_WIDTH; // x Location
-    p1.y = 1 * BLOCK_WIDTH; // y location
+    p1.x = 1 * BLOCK_WIDTH + 2; // x Location
+    p1.y = 1 * BLOCK_WIDTH + 2; // y location
+    p1.prevX = p1.x;
+    p1.prevY = p1.y; 
     p1.bombRadius = 1; // default 1
     p1.bombNum = 1; // max bombs player can place at once
     p1.bombsPlaced = 0; // 
     p1.colour = RED; 
-    // p1.bombID = PLAYER1BOMB;
+    p1.bombID[0] = PLAYER1BOMB_ONE;
+    p1.bombID[1] = PLAYER1BOMB_TWO;
+    p1.bombID[2] = PLAYER1BOMB_THREE;
     Player *player1Insert = &p1;
     updateMiddlePlayer(player1Insert);
     p1.BlockX = calculateBlockX(p1.x);
@@ -607,11 +613,15 @@ void initializePlayer1() {
 void initializePlayer2() {
     p2.x = (GAME_RESOLUTION_X) - 2 * BLOCK_WIDTH + 3; // x Location
     p2.y = (GAME_RESOLUTION_Y) - 2 * BLOCK_WIDTH + 3; // y location
+    p2.prevX = p2.x;
+    p2.prevY = p2.y; 
     p2.bombRadius = 1; // default 1
     p2.bombNum = 1; // max bombs player can place at once
     p2.bombsPlaced = 0; // 
     p2.colour = BLUE; 
-    // p2.bombID = PLAYER2BOMB;
+    p2.bombID[0] = PLAYER2BOMB_ONE;
+    p2.bombID[1] = PLAYER2BOMB_TWO;
+    p2.bombID[2] = PLAYER2BOMB_THREE;
     Player *player2Insert = &p2;
     updateMiddlePlayer(player2Insert); 
     p2.BlockX = calculateBlockX(p2.x);
@@ -632,65 +642,68 @@ void updateMiddlePlayer(Player *player) {
     player->middleX = player->x + HALF_OF_PLAYER;
     player->middleY = player->y + HALF_OF_PLAYER;
 }
-int checkLegalMove(int playerX, int playerY, int changeX, int changeY, int middleX, int middleY) {
+int checkLegalMove(int playerX, int playerY, int changeX, int changeY, Player player) {
     int legal = TRUE;
 
-    if (fullMapArray[playerX][playerY] == BRICK) {
+    if (fullMapArray[playerX + changeX][playerY + changeY] == BRICK) {
         legal = FALSE;
-    } else if (fullMapArray[playerX][playerY] == STONE) {
+    } else if (fullMapArray[playerX + changeX][playerY + changeY] == STONE) {
         legal = FALSE;
-    }
-    // } else if (fullMapArray[playerX][playerY] == PLAYER1BOMB_ONE || fullMapArray[playerX][playerY] == PLAYER2BOMB_ONE 
-    //             || fullMapArray[playerX][playerY] == PLAYER1BOMB_TWO || fullMapArray[playerX][playerY] == PLAYER2BOMB_TWO
-    //             || fullMapArray[playerX][playerY] == PLAYER1BOMB_THREE || fullMapArray[playerX][playerY] == PLAYER2BOMB_THREE) {
-
-    //     if (fullMapArray[playerX][playerY] == fullMapArray[middleX][middleY]) {
-
-    //     } else
-    //         legal = FALSE;
-    // } 
+    } else if (fullMapArray[playerX + changeX][playerY + changeY] == PLAYER1BOMB_ONE || fullMapArray[playerX + changeX][playerY + changeY] == PLAYER2BOMB_ONE 
+                || fullMapArray[playerX + changeX][playerY + changeY] == PLAYER1BOMB_TWO || fullMapArray[playerX + changeX][playerY + changeY] == PLAYER2BOMB_TWO
+                || fullMapArray[playerX + changeX][playerY + changeY] == PLAYER1BOMB_THREE || fullMapArray[playerX + changeX][playerY + changeY] == PLAYER2BOMB_THREE) {
+    // can move through their own bomb
+        int foundBomb = FALSE;
+        for (int i = 0; i < BOMB_INTERVALS; i++)  {
+            if (fullMapArray[playerX + changeX][playerY + changeY] == player.bombID[i]) {
+                foundBomb = TRUE; 
+            }
+        }
+        if (foundBomb == FALSE){
+            legal = FALSE;
+        }
+    } 
     return legal; 
 }
 
 void updatePlayer(Player *player, int changeX, int changeY) {
-        // top left
-    int xLoc1 = player->x + changeX;
-    int yLoc1 = player->x + changeY;
+    int legalMove = TRUE; 
+    
+    for (int i = 0; i < PLAYER_WIDTH; i += PLAYER_WIDTH - 1) {
+        for (int j = 0; j < PLAYER_WIDTH; j += PLAYER_WIDTH - 1) {
+            if (checkLegalMove(player->x + i, player->y + j, changeX, changeY, *player) == FALSE){
+                legalMove = FALSE;
+            }
+        }
+    }
 
-    // top right
-    int xLoc2 = player->x + PLAYER_WIDTH + changeX;
-    int yLoc2 = player->x + changeY;
 
-    // bottom right
-    int xLoc3 = player->x + PLAYER_WIDTH + changeX;
-    int yLoc3= player->x + PLAYER_WIDTH + changeY;
-
-    // bottom left
-    int xLoc4 = player->x + changeX;
-    int yLoc4 = player->x + PLAYER_WIDTH + changeY;
-
-    int middleX = player->middleX;
-    int middleY = player->middleY;
-
-//     if ((checkLegalMove(xLoc4, yLoc4, changeX, changeY, middleX, middleY) == TRUE) &&
-//         (checkLegalMove(xLoc3, yLoc3, changeX, changeY, middleX, middleY) == TRUE) &&
-// (        checkLegalMove(xLoc2, yLoc2, changeX, changeY, middleX, middleY) == TRUE) &&
-// (        checkLegalMove(xLoc1, yLoc1, changeX, changeY, middleX, middleY) == TRUE)) {
+    if (legalMove == TRUE) {
         player->x += changeX;
         player->y += changeY; 
         updateMiddlePlayer(player);
         updatePlayerBlock(player);
-    // }
+    }
 }
 
-void drawPlayer(Player player) {
+void drawPlayer(Player *player) {
 // take in type player to determine where to draw.
+    // delete the old player 
+    // if ((player->prevX != player->x) || (player->prevY != player->y)){
+    //     for (int i = 0; i < PLAYER_WIDTH; i++) {
+    //         for (int j = 0; j < PLAYER_WIDTH; j++) {
+    //                 plot_pixel(i + player->prevX, j + player->prevY, grassSprite[j][i]); 
+    //         }   
+    //     }
+    //     player->prevX = player->x;
+    //     player->prevY = player->y;      
+    // }
     for (int i = 0; i < PLAYER_WIDTH; i++) {
         for (int j = 0; j < PLAYER_WIDTH; j++) {
-            if (player.colour == RED) // p1
-                plot_pixel(i + player.x, j + player.y, playerOneSprite[j][i]); 
+            if (player->colour == RED) // p1
+                plot_pixel(i + player->x, j + player->y, playerOneSprite[j][i]); 
             else // p2
-                plot_pixel(i + player.x, j + player.y, playerTwoSprite[j][i]); 
+                plot_pixel(i + player->x, j + player->y, playerTwoSprite[j][i]); 
         }   
     }
 }
@@ -720,7 +733,7 @@ int calculateBlockY(int y){
 } // given an y in pixels, returns y address in block
 
 void drawBumber() {
-    clear_screen(); 
+    // clear_screen(); 
     if (initializeFirst == TRUE) {
         initializePlayer1();
         initializeMap();
@@ -735,13 +748,16 @@ void drawBumber() {
     // 304 by 240
     for (int i = 0; i < GAME_RESOLUTION_X; i += BLOCK_WIDTH) {
         for (int j = 0; j < GAME_RESOLUTION_Y; j+= BLOCK_WIDTH) {
-            drawBlock(i, j, mapArray[i / BLOCK_WIDTH][j / BLOCK_WIDTH]);
+            // if (fullMapArray[i][j] != mapArray[i / BLOCK_WIDTH][j / BLOCK_WIDTH]) {
+                // check if the block changed
+                drawBlock(i, j, mapArray[i / BLOCK_WIDTH][j / BLOCK_WIDTH]);
+            // }
         }
     }
 
-    drawPlayer(p1); 
+    drawPlayer(&p1); 
     if (gameState == TWOP) 
-        drawPlayer(p2);
+        drawPlayer(&p2);
 }
 
 void initializeExplosionStruct(Explosion *explosion) {
@@ -763,6 +779,12 @@ void initializeExplosion() {
 void initializeMap() {
     // everything is grass by default, so we should just add in blocks
     // 
+    // make full map array nothing
+    for (int i = 0; i < GAME_RESOLUTION_X; i++) {
+        for (int j = 0; j < GAME_RESOLUTION_Y; j++) {
+            fullMapArray[i][j] = NO_BOMB; // -1 
+        }
+    }
     for (int i = 0; i < BLOCK_RES_X; i++){
         for (int j = 0; j < BLOCK_RES_Y; j++){
             mapArray[i][j] = GRASS; 
@@ -784,32 +806,32 @@ void initializeMap() {
     }    
 
     // add the bricks
-    srand(time(NULL));
-    for (int i = 1; i < BLOCK_RES_X - 1;  i++){
-        for (int j = 1; j < BLOCK_RES_Y - 1; j++) {
-            // don't draw bricks if it is the starting 3 squares for player of if it is a wall
-            if (mapArray[i][j] == STONE || (i == 1 && j == 1) || (i == 1 && j == 2) || (i == 2 && j == 1)  
-                || (i == BLOCK_RES_X - 2 && j == BLOCK_RES_Y - 2) || (i == BLOCK_RES_X - 3 && j == BLOCK_RES_Y - 2) || (i == BLOCK_RES_X - 2 && j == BLOCK_RES_Y - 3))
-                continue;
-            else {
-                // randomly draw a brick. 1 in 15 chance of being blank. 
-                int num = rand()%15; 
-                if (num % 14 == 0) {
-                    continue;
-                } else {
-                    mapArray[i][j] = BRICK; 
-                }
-            }
-        }
-    }
-    // make the edges of player spawn a brick
-    // top left
-    mapArray[3][1] = BRICK;
-    mapArray[1][3] = BRICK;
+    // srand(time(NULL));
+    // for (int i = 1; i < BLOCK_RES_X - 1;  i++){
+    //     for (int j = 1; j < BLOCK_RES_Y - 1; j++) {
+    //         // don't draw bricks if it is the starting 3 squares for player of if it is a wall
+    //         if (mapArray[i][j] == STONE || (i == 1 && j == 1) || (i == 1 && j == 2) || (i == 2 && j == 1)  
+    //             || (i == BLOCK_RES_X - 2 && j == BLOCK_RES_Y - 2) || (i == BLOCK_RES_X - 3 && j == BLOCK_RES_Y - 2) || (i == BLOCK_RES_X - 2 && j == BLOCK_RES_Y - 3))
+    //             continue;
+    //         else {
+    //             // randomly draw a brick. 1 in brickChance chance of being blank. 
+    //             int num = rand()% brickChance; 
+    //             if (num % brickChance - 1 == 0) {
+    //                 continue;
+    //             } else {
+    //                 mapArray[i][j] = BRICK; 
+    //             }
+    //         }
+    //     }
+    // }
+    // // make the edges of player spawn a brick
+    // // top left
+    // mapArray[3][1] = BRICK;
+    // mapArray[1][3] = BRICK;
 
-    // bottom right;
-    mapArray[GAME_RESOLUTION_X - 4][GAME_RESOLUTION_Y - 1] = BRICK;
-    mapArray[GAME_RESOLUTION_X - 1][GAME_RESOLUTION_Y - 4] = BRICK;
+    // // bottom right;
+    // mapArray[BLOCK_RES_X- 4][BLOCK_RES_Y - 2] = BRICK;
+    // mapArray[BLOCK_RES_X - 2][BLOCK_RES_Y - 4] = BRICK;
 }
 
 void keyboard_input() {
@@ -1045,6 +1067,8 @@ int main(void) {
                     if (keyInterrupts[i] == KEY_SPACE) {
                         gameState = TWOP;
                         initializeFirst = TRUE;
+                        brickChance = 2; 
+                        // clear_screen(); 
                         break;
                     }
                     else if (keyInterrupts[i] == 0) break;
