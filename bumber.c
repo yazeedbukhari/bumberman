@@ -991,8 +991,8 @@ void checkExplosions()  {
 void checkPlayerLoc(Player *player) {
     // checks if a player is on a power -up / explosion... etc.
     for (int i = 0; i < PLAYER_WIDTH; i += PLAYER_WIDTH - 1) {
-        for (int j = 0; j < PLAYER_WIDTH j += PLAYER_WIDTH - 1) {
-            if (mapArray[player->x + i][player->y + j] == EXPLODE) {
+        for (int j = 0; j < PLAYER_WIDTH; j += PLAYER_WIDTH - 1) {
+            if (fullMapArray[player->x + i][player->y + j] == EXPLODE) {
                 player->dead = TRUE; 
             }
         }
@@ -1108,14 +1108,14 @@ int main(void) {
                 if ((p1.dead == TRUE) || (p2.dead == TRUE))  {
                     gameState = OVER;
                     if ((p1.dead == TRUE && (p2.dead == TRUE))) {
-                        gameoverState = DRAW;
+                        gameoverState = GAMEOVER_DRAW;
                     } else if (p1.dead == TRUE) {
                         gameoverState = GAMEOVER_P2;
                     } else
                         gameoverState = GAMEOVER_P1;
                 }
                 break;
-                
+
             case OVER:
                 keyboard_input();
                 // drawOver(); // different victory screens
