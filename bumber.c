@@ -127,17 +127,29 @@
 //extra defs for no magic numbers
 #define maxInterrupt    15
 #define PLAYER_WIDTH    11 // 11x11 player
-#define MAX_BOMBS 100
-#define BOMB_TIMER 300000
+#define MAX_BOMBS 10
+#define BOMB_TIMER 3
 #define BOMB_INTERVALS 3 // 3 different stages of bomb
 // 8 pixel wide player
 // keyboard definitions
+#define MOVE_UP -1
+#define MOVE_LEFT -1
+#define MOVE_DOWN 1
+#define MOVE_RIGHT 1 
+
 #define KEY_SPACE 0x29
 #define KEY_W 0x1D
 #define KEY_A 0x1c
 #define KEY_S 0x1B
 #define KEY_D 0x23
 #define KEY_C 0x21
+
+// player 2 definitions
+#define KEY_UP 0x75
+#define KEY_DOWN 0x72
+#define KEY_LEFT 0x6B
+#define KEY_RIGHT 0x74
+#define KEY_M 0x3A
 
 // Includes
 #include <stdlib.h>
@@ -183,12 +195,12 @@ void drawBumber();
 void keyboard_input();
 int calculateBlockX(); // given an x in pixels, returns x address in block
 int calculateBlockY(); // given an y in pixels, returns y address in block
-void updateMiddlePlayer(Player player); // updates middle x and y of player
-void checkBombs(Player player);
-void placeBomb(Player player); 
-void updatePlayer(Player player, int changeX, int changeY); // updates everything about player
-void updatePlayerBlock(Player player); 
-
+void updateMiddlePlayer(Player *player); // updates middle x and y of player
+void checkBombs(Player *player);
+void placeBomb(Player *player); 
+void updatePlayer(Player *player, int changeX, int changeY); // updates everything about player
+void updatePlayerBlock(Player *player); 
+int checkLegalMove(int playerX, int playerY, int changeX, int changeY, int middleX, int middleY);
 // global arrays: 
 int mapArray[BLOCK_RES_X][BLOCK_RES_Y] = {0}; // 304 by 240 in terms of 16 x 16 blocks
 int fullMapArray[GAME_RESOLUTION_X][GAME_RESOLUTION_Y] = {0}; // Pixel by pixel
@@ -263,17 +275,17 @@ const int brickSprite[BLOCK_WIDTH][BLOCK_WIDTH] = {
 };
 // red monkey
 const int playerOneSprite[PLAYER_WIDTH][PLAYER_WIDTH] = {
-{9610, 9610, 9610, 61669, 61669, 61669, 61669, 61669, 9610, 9610, 9610},
-{9610, 9610, 61669, 61669, 61669, 61669, 61669, 61669, 61669, 9610, 9610},
-{9610, 61669, 61669, 65496, 65496, 61669, 65496, 65496, 61669, 61669, 9610},
+{0x4947 , 0x4947 , 0x4947 , 61669, 61669, 61669, 61669, 61669, 0x4947 , 0x4947 , 0x4947 },
+{0x4947 , 0x4947 , 61669, 61669, 61669, 61669, 61669, 61669, 61669, 0x4947 , 0x4947 },
+{0x4947 , 61669, 61669, 65496, 65496, 61669, 65496, 65496, 61669, 61669, 0x4947 },
 {65496, 61669, 65496, 65496, 65496, 65496, 65496, 65496, 65496, 61669, 65496},
 {65496, 61669, 65496, 19017, 65496, 65496, 65496, 19017, 65496, 61669, 65496},
-{9610, 61669, 65496, 65496, 65496, 65496, 65496, 65496, 65496, 61669, 9610},
-{9610, 61669, 61669, 65496, 65496, 19017, 65496, 65496, 61669, 61669, 9610},
-{9610, 9610, 61669, 61669, 65496, 65496, 65496, 61669, 61669, 9610, 9610},
-{9610, 9610, 9610, 61669, 61669, 61669, 61669, 61669, 9610, 9610, 9610},
-{9610, 9610, 61669, 61669, 61669, 61669, 61669, 61669, 61669, 9610, 9610},
-{9610, 61669, 61669, 61669, 65496, 61669, 65496, 61669, 61669, 61669, 9610},
+{0x4947 , 61669, 65496, 65496, 65496, 65496, 65496, 65496, 65496, 61669, 0x4947 },
+{0x4947 , 61669, 61669, 65496, 65496, 19017, 65496, 65496, 61669, 61669, 0x4947 },
+{0x4947 , 0x4947 , 61669, 61669, 65496, 65496, 65496, 61669, 61669, 0x4947 , 0x4947 },
+{0x4947 , 0x4947 , 0x4947 , 61669, 61669, 61669, 61669, 61669, 0x4947 , 0x4947 , 0x4947 },
+{0x4947 , 0x4947 , 61669, 61669, 61669, 61669, 61669, 61669, 61669, 0x4947 , 0x4947 },
+{0x4947 , 61669, 61669, 61669, 65496, 61669, 65496, 61669, 61669, 61669, 0x4947 },
 };
 // blue monkey
 const int playerTwoSprite[PLAYER_WIDTH][PLAYER_WIDTH] = {
@@ -545,7 +557,8 @@ void initializePlayer1() {
     p1.bombsPlaced = 0; // 
     p1.colour = RED; 
     // p1.bombID = PLAYER1BOMB;
-    updateMiddlePlayer(p1);
+    Player *player1Insert = &p1;
+    updateMiddlePlayer(player1Insert);
     p1.BlockX = calculateBlockX(p1.x);
     p1.BlockY = calculateBlockY(p1.y);
     p1.dead = 0;
@@ -563,8 +576,9 @@ void initializePlayer2() {
     p2.bombNum = 1; // max bombs player can place at once
     p2.bombsPlaced = 0; // 
     p2.colour = BLUE; 
-    // p2.bombID = PLAYER2BOMB; 
-    updateMiddlePlayer(p2);
+    // p2.bombID = PLAYER2BOMB;
+    Player *player2Insert = &p2;
+    updateMiddlePlayer(player2Insert); 
     p2.BlockX = calculateBlockX(p2.x);
     p2.BlockY = calculateBlockY(p2.y);
     p2.dead = 0;
@@ -575,37 +589,61 @@ void initializePlayer2() {
     }
 }
 
-void updatePlayerBlock(Player player){
-    player.BlockX = calculateBlockX(player.x);
-    player.BlockY = calculateBlockY(player.y);
+void updatePlayerBlock(Player *player){
+    player->BlockX = calculateBlockX(player->x);
+    player->BlockY = calculateBlockY(player->y);
 }
-void updateMiddlePlayer(Player player) {
-    player.middleX = player.x + HALF_OF_PLAYER;
-    player.middleY = player.y + HALF_OF_PLAYER;
+void updateMiddlePlayer(Player *player) {
+    player->middleX = player->x + HALF_OF_PLAYER;
+    player->middleY = player->y + HALF_OF_PLAYER;
 }
-int checkLegalMove(Player player, int changeX, int changeY) {
+int checkLegalMove(int playerX, int playerY, int changeX, int changeY, int middleX, int middleY) {
     int legal = TRUE;
-    int xLoc = player.x + changeX;
-    int yLoc = player.y + changeY;
-    if (fullMapArray[xLoc][yLoc] == BRICK || fullMapArray[xLoc][yLoc] == STONE) {
+
+    if (fullMapArray[playerX][playerY] == BRICK || fullMapArray[playerX][playerY] == STONE) {
         legal = FALSE;
-    } else if (fullMapArray[xLoc][yLoc] == PLAYER1BOMB_ONE || fullMapArray[xLoc][yLoc] == PLAYER2BOMB_ONE 
-                || fullMapArray[xLoc][yLoc] == PLAYER1BOMB_TWO || fullMapArray[xLoc][yLoc] == PLAYER2BOMB_TWO
-                || fullMapArray[xLoc][yLoc] == PLAYER1BOMB_THREE || fullMapArray[xLoc][yLoc] == PLAYER2BOMB_THREE) {
-        if (fullMapArray[xLoc][yLoc] == fullMapArray[player.middleX][player.middleY]) {
+    } else if (fullMapArray[playerX][playerY] == PLAYER1BOMB_ONE || fullMapArray[playerX][playerY] == PLAYER2BOMB_ONE 
+                || fullMapArray[playerX][playerY] == PLAYER1BOMB_TWO || fullMapArray[playerX][playerY] == PLAYER2BOMB_TWO
+                || fullMapArray[playerX][playerY] == PLAYER1BOMB_THREE || fullMapArray[playerX][playerY] == PLAYER2BOMB_THREE) {
+
+        if (fullMapArray[playerX][playerY] == fullMapArray[middleX][middleY]) {
+
         } else
             legal = FALSE;
     } 
     return legal; 
 }
 
-void updatePlayer(Player player, int changeX, int changeY) {
-    if (checkLegalMove(player, changeX, changeY) == TRUE) {
-        player.x += changeX;
-        player.y +=changeY; 
+void updatePlayer(Player *player, int changeX, int changeY) {
+        // top left
+    int xLoc1 = player->x + changeX;
+    int yLoc1 = player->x + changeY;
+
+    // top right
+    int xLoc2 = player->x + PLAYER_WIDTH - 1 + changeX;
+    int yLoc2 = player->x + changeY;
+
+    // bottom right
+    int xLoc3 = player->x + PLAYER_WIDTH - 1 + changeX;
+    int yLoc3= player->x + PLAYER_WIDTH - 1 + changeY;
+
+    // bottom left
+    int xLoc4 = player->x + changeX;
+    int yLoc4 = player->x + PLAYER_WIDTH - 1 + changeY;
+
+    int middleX = player->middleX;
+    int middleY = player->middleY;
+
+    // if (checkLegalMove(xLoc4, yLoc4, changeX, changeY, middleX, middleY) == TRUE &&
+    //     checkLegalMove(xLoc3, yLoc3, changeX, changeY, middleX, middleY) == TRUE &&
+    //     checkLegalMove(xLoc2, yLoc2, changeX, changeY, middleX, middleY) == TRUE &&
+    //     checkLegalMove(xLoc1, yLoc1, changeX, changeY, middleX, middleY) == TRUE) {
+            
+        player->x += changeX;
+        player->y += changeY; 
         updateMiddlePlayer(player);
-        updatePlayer(player);
-    }
+        updatePlayerBlock(player);
+    // }
 }
 
 void drawPlayer(Player player) {
@@ -653,7 +691,6 @@ void drawBumber() {
             // initialize player 2
             initializePlayer2();
         }
-
         initializeFirst = FALSE;
     }
     // 304 by 240
@@ -663,7 +700,8 @@ void drawBumber() {
         }
     }
     drawPlayer(p1); 
-    if (gameState == TWOP) drawPlayer(p2);
+    if (gameState == TWOP) 
+        drawPlayer(p2);
 }
 
 void initializeMap() {
@@ -735,49 +773,49 @@ void keyboard_input() {
     return;
 }
 
-void placeBomb(Player player) {
-    if (player.bombNum > player.bombsPlaced) {
+void placeBomb(Player *player) {
+    if (player->bombNum > player->bombsPlaced) {
         // check if player has enough bombs
-        player.bombsPlaced++; 
-        if (player.colour == RED) {
-            mapArray[player.BlockX][player.BlockY] = PLAYER1BOMB_ONE; 
+        player->bombsPlaced++; 
+        if (player->colour == RED) {
+            mapArray[player->BlockX][player->BlockY] = PLAYER1BOMB_ONE; 
         } else 
-            mapArray[player.BlockX][player.BlockY] = PLAYER2BOMB_ONE; 
+            mapArray[player->BlockX][player->BlockY] = PLAYER2BOMB_ONE; 
 
-        player.bombArrX[player.bombsPlaced - 1] = player.BlockX;
-        player.bombArrY[player.bombsPlaced - 1] = player.BlockY; 
-        player.bombTimer[player.bombsPlaced - 1] = BOMB_TIMER; 
+        player->bombArrX[player->bombsPlaced - 1] = player->BlockX;
+        player->bombArrY[player->bombsPlaced - 1] = player->BlockY; 
+        player->bombTimer[player->bombsPlaced - 1] = BOMB_TIMER; 
         // make all other elements in the array NO_BOMB
-        for (int i = player.bombsPlaced; i < MAX_BOMBS; i++) {
-            player.bombArrX[i] = NO_BOMB;
-            player.bombArrY[i] = NO_BOMB;
-            player.bombTimer[i] = NO_BOMB;
+        for (int i = player->bombsPlaced; i < MAX_BOMBS; i++) {
+            player->bombArrX[i] = NO_BOMB;
+            player->bombArrY[i] = NO_BOMB;
+            player->bombTimer[i] = NO_BOMB;
         }
     }
 }
 
-void checkBombs(Player player) {
+void checkBombs(Player *player) {
     // checks the timer on the bombs. if 0 EXPLODE! if NO_BOMB continue!
     // otherwise COUNT DOWN!!!!
-    for (int i = 0; i < player.bombsPlaced; i++) {
-        if (player.bombTimer[i] == 0)  {
+    for (int i = 0; i < player->bombsPlaced; i++) {
+        if (player->bombTimer[i] == 0)  {
             // EXPLOSION TIME
 
-        } else if (player.bombTimer[i] == BOMB_TIMER - (BOMB_TIMER / BOMB_INTERVALS)) {
-            if (player.colour == RED) {
-                mapArray[player.bombArrX[i]][player.bombArrY[i]] = PLAYER1BOMB_TWO; 
+        } else if (player->bombTimer[i] == BOMB_TIMER - (BOMB_TIMER / BOMB_INTERVALS)) {
+            if (player->colour == RED) {
+                mapArray[player->bombArrX[i]][player->bombArrY[i]] = PLAYER1BOMB_TWO; 
             } else 
-                mapArray[player.bombArrX[i]][player.bombArrY[i]] = PLAYER2BOMB_TWO; 
-            player.bombTimer[i]--;        
+                mapArray[player->bombArrX[i]][player->bombArrY[i]] = PLAYER2BOMB_TWO; 
+            player->bombTimer[i]--;        
         }
-        else if (player.bombTimer[i] == BOMB_TIMER - 2 * (BOMB_TIMER / BOMB_INTERVALS)) {
-            if (player.colour == RED) {
-                mapArray[player.bombArrX[i]][player.bombArrY[i]] = PLAYER1BOMB_THREE; 
+        else if (player->bombTimer[i] == BOMB_TIMER - 2 * (BOMB_TIMER / BOMB_INTERVALS)) {
+            if (player->colour == RED) {
+                mapArray[player->bombArrX[i]][player->bombArrY[i]] = PLAYER1BOMB_THREE; 
             } else 
-                mapArray[player.bombArrX[i]][player.bombArrY[i]] = PLAYER2BOMB_THREE; 
-            player.bombTimer[i]--;        
+                mapArray[player->bombArrX[i]][player->bombArrY[i]] = PLAYER2BOMB_THREE; 
+            player->bombTimer[i]--;        
         } else 
-            player.bombTimer[i]--;
+            player->bombTimer[i]--;
     }
 }
 
@@ -833,11 +871,50 @@ int main(void) {
                 keyboard_input();
                 drawBumber();
                 for (int i = 0; i < maxInterrupt; i++) {
+                    // player 1
+
                     if (keyInterrupts[i] == KEY_C) {
-                        placeBomb(p1); 
-                    } else if (keyInterrupts[i] == )
+                        placeBomb(&p1); 
+                    } else if (keyInterrupts[i] == KEY_M) {
+                        // moving up decreases Y
+                        placeBomb(&p2); 
+                    } else if (keyInterrupts[i] == KEY_W) {
+                        // moving up decreases Y
+                        updatePlayer(&p1, 0, MOVE_UP);
+                    } else if (keyInterrupts[i] == KEY_A) {
+                        // moving left decreases X
+                        updatePlayer(&p1, MOVE_LEFT, 0);
+                    } else if (keyInterrupts[i] == KEY_S) {
+                        // moving down
+                        updatePlayer(&p1, 0, MOVE_DOWN);
+                    } else if (keyInterrupts[i] == KEY_D) {
+                        // moving up decreases Y
+                        updatePlayer(&p1, MOVE_RIGHT, 0);
+
+
+                        // player 2
+                    }  else if (keyInterrupts[i] == KEY_UP) {
+                        // moving up decreases Y
+                        updatePlayer(&p2, 0, MOVE_UP);
+                    } else if (keyInterrupts[i] == KEY_LEFT) {
+                        // moving left decreases X
+                        updatePlayer(&p2, MOVE_LEFT, 0);
+                    } else if (keyInterrupts[i] == KEY_DOWN) {
+                        // moving down
+                        updatePlayer(&p2, 0, MOVE_DOWN);
+                    } else if (keyInterrupts[i] == KEY_RIGHT) {
+                        // moving up decreases Y
+                        updatePlayer(&p2, MOVE_RIGHT, 0);
+                    }
                     else if (keyInterrupts[i] == 0) break;
                 }
+
+
+                // check the bombs 
+                // Player *&p1 = &p1;
+                checkBombs(&p1);
+                // Player *p2Insert = &p2;
+                checkBombs(&p2); 
                 break;
             case OVER:
                 break;
