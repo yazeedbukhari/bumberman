@@ -150,7 +150,8 @@
 #define POWERUP_MOREBOMB 101
 #define POWERUP_MOVESPEED 102
 #define MAX_MOVESPEED 4
-
+#define MAX_POWERUPS_ONSCREEN 3
+int numPowerUpsOnScreen = 0;
 // 3 power ups in total: Movement speed, #bombs, bomb radius
 int powerUpTimer = NO_BOMB; 
  // 3 different stages of bomb
@@ -248,7 +249,7 @@ int mapArray[BLOCK_RES_X][BLOCK_RES_Y] = {0}; // 304 by 240 in terms of 16 x 16 
 int fullMapArray[GAME_RESOLUTION_X][GAME_RESOLUTION_Y] = {0}; // Pixel by pixel
 int keyInterrupts[maxInterrupt] = {0};
 Explosion explosions[MAX_EXPLOSIONS];
-int previousPosition[2][2]
+int previousPosition[2][2];
 int previousPreviousPosition[2][2]; 
 
 // global variables:
@@ -801,6 +802,24 @@ void drawHome()  {
 	}	    
 }
 
+void drawOver()  {
+	for(int i = 0; i < RESOLUTION_X; i++){
+		for(int j = 0; j < RESOLUTION_Y; j++){
+            if (gameoverState == GAMEOVER_DRAW) {
+			    plot_pixel(i, j , homeSprite[j][i]);
+            } else if (gameoverState == GAMEOVER_P1) {
+
+            } else if (gameoverState == GAMEOVER_P2) {
+                
+            } else if (gameoverState == GAMEOVER_SOLO_LOSE) {
+                
+            } else if (gameoverState == GAMEOVER_SOLO_WIN) {
+                
+            }
+		}
+	}	    
+}
+
 // void drawPlayer(Player player) {
 // // take in type player to determine where to draw.
 //     for (int i = 0; i < PLAYER_WIDTH; i++) {
@@ -819,6 +838,7 @@ int calculateBlockY(int y){
 } // given an y in pixels, returns y address in block
 void spawnPowerUp() {
     int spawned = FALSE;
+    numPowerUpsOnScreen++;
     while (spawned == FALSE) {
         int randomX = rand()%BLOCK_RES_X;
         int randomY = rand()%BLOCK_RES_Y;
@@ -843,7 +863,9 @@ void spawnPowerUp() {
 void checkPowerUp() {
     if (powerUpTimer == 0) {
         //spawn power up and reset timer
-        spawnPowerUp();
+        if (numPowerUpsOnScreen < MAX_POWERUPS_ONSCREEN) {
+            spawnPowerUp();
+        }
         powerUpTimer = POWERUP_TIMER;
     } else {
         powerUpTimer--;
@@ -856,6 +878,7 @@ void drawBumber() {
         initializeMap();
         initializeExplosion(); 
         numExplosions = 0;
+        numPowerUpsOnScreen = 0;
         powerUpTimer = INITIAL_POWERUP_TIMER; 
         if (gameState == TWOP) {
             // initialize player 2
@@ -1138,16 +1161,19 @@ void checkPlayerLoc(Player *player) {
                 if (player->bombNum < MAX_BOMBS) {
                     player->bombNum++; 
                 }
+                numPowerUpsOnScreen--;
                 // reset back to grass
                 mapArray[calculateBlockX(player->x+i)][calculateBlockY(player->y+j)] = GRASS;
             } else if (fullMapArray[player->x + i][player->y + j] == POWERUP_RADIUS) {
                 player->bombRadius++;
                 // reset back to grass
+                numPowerUpsOnScreen--;
                 mapArray[calculateBlockX(player->x+i)][calculateBlockY(player->y+j)] = GRASS;
             } else if (fullMapArray[player->x + i][player->y + j] == POWERUP_MOVESPEED) {
                 if (player->moveSpeed < MAX_MOVESPEED) {
                     player->moveSpeed++; 
                 }
+                numPowerUpsOnScreen--;
                 // reset back to grass
                 mapArray[calculateBlockX(player->x+i)][calculateBlockY(player->y+j)] = GRASS;
             } 
