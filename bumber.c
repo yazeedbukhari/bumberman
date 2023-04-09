@@ -127,6 +127,12 @@
 #define TWOP    2
 #define OVER    3
 
+// game over states
+#define GAMEOVER_P1 0
+#define GAMEOVER_P2 1
+#define GAMEOVER_DRAW 2
+
+int gameoverState = 0; 
 //extra defs for no magic numbers
 #define maxInterrupt 15
 #define PLAYER_WIDTH 11
@@ -203,6 +209,7 @@ Explosion explosions[MAX_EXPLOSIONS];
 void initializeExplosionStruct(Explosion *explosion);
 void initializeExplosion();
 void playBumber();
+void explosion(int startingX, int startingY, int radius);
 void plot_pixel(int x, int y, short int line_color);
 void clear_screen();
 void wait_for_vsync();
@@ -217,6 +224,7 @@ int calculateBlockX(); // given an x in pixels, returns x address in block
 int calculateBlockY(); // given an y in pixels, returns y address in block
 void updateMiddlePlayer(Player *player); // updates middle x and y of player
 void checkBombs(Player *player);
+void checkExplosions();
 void placeBomb(Player *player); 
 void updatePlayer(Player *player, int changeX, int changeY); // updates everything about player
 void updatePlayerBlock(Player *player); 
@@ -650,29 +658,29 @@ void updatePlayer(Player *player, int changeX, int changeY) {
     int yLoc1 = player->x + changeY;
 
     // top right
-    int xLoc2 = player->x + PLAYER_WIDTH - 1 + changeX;
+    int xLoc2 = player->x + PLAYER_WIDTH + changeX;
     int yLoc2 = player->x + changeY;
 
     // bottom right
-    int xLoc3 = player->x + PLAYER_WIDTH - 1 + changeX;
-    int yLoc3= player->x + PLAYER_WIDTH - 1 + changeY;
+    int xLoc3 = player->x + PLAYER_WIDTH + changeX;
+    int yLoc3= player->x + PLAYER_WIDTH + changeY;
 
     // bottom left
     int xLoc4 = player->x + changeX;
-    int yLoc4 = player->x + PLAYER_WIDTH - 1 + changeY;
+    int yLoc4 = player->x + PLAYER_WIDTH + changeY;
 
     int middleX = player->middleX;
     int middleY = player->middleY;
 
-    if (checkLegalMove(xLoc4, yLoc4, changeX, changeY, middleX, middleY) == TRUE &&
-        checkLegalMove(xLoc3, yLoc3, changeX, changeY, middleX, middleY) == TRUE &&
-        checkLegalMove(xLoc2, yLoc2, changeX, changeY, middleX, middleY) == TRUE &&
-        checkLegalMove(xLoc1, yLoc1, changeX, changeY, middleX, middleY) == TRUE) {
+//     if ((checkLegalMove(xLoc4, yLoc4, changeX, changeY, middleX, middleY) == TRUE) &&
+//         (checkLegalMove(xLoc3, yLoc3, changeX, changeY, middleX, middleY) == TRUE) &&
+// (        checkLegalMove(xLoc2, yLoc2, changeX, changeY, middleX, middleY) == TRUE) &&
+// (        checkLegalMove(xLoc1, yLoc1, changeX, changeY, middleX, middleY) == TRUE)) {
         player->x += changeX;
         player->y += changeY; 
         updateMiddlePlayer(player);
         updatePlayerBlock(player);
-    }
+    // }
 }
 
 void drawPlayer(Player player) {
@@ -717,6 +725,7 @@ void drawBumber() {
         initializePlayer1();
         initializeMap();
         initializeExplosion(); 
+        numExplosions = 0;
         if (gameState == TWOP) {
             // initialize player 2
             initializePlayer2();
@@ -951,7 +960,43 @@ void explosion(int startingX, int startingY, int radius) {
             break;
     }
     explosionInsert.size = numBlocks; 
+    explosionInsert.timer = EXPLOSION_TIMER; 
     explosions[numExplosions - 1] = explosionInsert;
+}
+void checkExplosions()  {
+    for (int i = 0; i < numExplosions; i++)  {
+        if (explosions[i].timer == 0)  {
+            // pop the front and delete the explosions
+            numExplosions--; 
+            for (int j = 0; j < explosions[i].size; j++)  { // delete explosions 
+                mapArray[explosions[i].X_BLOCKS[j]][explosions[i].Y_BLOCKS[j]] = GRASS;
+            }
+            
+            
+            for (int k = 0; k < MAX_EXPLOSIONS - 1; k++) {
+                // pop front
+                explosions[k] = explosions[k+1];
+            }
+            // make last element null basically
+            Explosion explosionNew; 
+            initializeExplosionStruct (&explosionNew);
+            explosions[MAX_EXPLOSIONS - 1] = explosionNew;  
+
+        } else {
+            explosions[i].timer--;
+        }
+    }
+}
+
+void checkPlayerLoc(Player *player) {
+    // checks if a player is on a power -up / explosion... etc.
+    for (int i = 0; i < PLAYER_WIDTH; i += PLAYER_WIDTH - 1) {
+        for (int j = 0; j < PLAYER_WIDTH j += PLAYER_WIDTH - 1) {
+            if (mapArray[player->x + i][player->y + j] == EXPLODE) {
+                player->dead = TRUE; 
+            }
+        }
+    }
 }
 void deleteFirst(int arr[], int size) {
     for (int i = 0; i < size - 1; i++) {
@@ -1056,8 +1101,31 @@ int main(void) {
                 checkBombs(&p1);
                 // Player *p2Insert = &p2;
                 checkBombs(&p2); 
+                checkExplosions(); 
+                checkPlayerLoc(&p1);
+                checkPlayerLoc(&p2);
+
+                if ((p1.dead == TRUE) || (p2.dead == TRUE))  {
+                    gameState = OVER;
+                    if ((p1.dead == TRUE && (p2.dead == TRUE))) {
+                        gameoverState = DRAW;
+                    } else if (p1.dead == TRUE) {
+                        gameoverState = GAMEOVER_P2;
+                    } else
+                        gameoverState = GAMEOVER_P1;
+                }
                 break;
+                
             case OVER:
+                keyboard_input();
+                // drawOver(); // different victory screens
+                for (int i = 0; i < maxInterrupt; i++) {
+                    if (keyInterrupts[i] == KEY_SPACE) {
+                        gameState = HOME;
+                        break;
+                    }
+                    else if (keyInterrupts[i] == 0) break;
+                }
                 break;
         }
          // commented out to not mess with drawing code for now
