@@ -99,6 +99,7 @@
 #define BLOCK_RES_Y 15
 #define FALSE   0
 #define TRUE    1
+#define NO_BOMB -1
 
 // Game block (map) definitions:
 #define GRASS   0 
@@ -106,10 +107,17 @@
 #define BRICK   2
 #define BOMB    3
 #define EXPLODE 4
-#define PLAYER1 5
-#define PLAYER2 6 
+#define PLAYER1BOMB_ONE 5 // different stages of exploding 
+#define PLAYER1BOMB_TWO 6
+#define PLAYER1BOMB_THREE 7
+
+#define PLAYER2BOMB_ONE 10 
+#define PLAYER2BOMB_TWO 11
+#define PLAYER2BOMB_THREE 12
+
 #define BLOCK_WIDTH 16 // 16x16 block
 #define HALF_OF_PLAYER 5 // 11 x 11 player, 1 + 5 = 6 makes the middle
+
 // Game State Definitions
 #define HOME    0
 #define ONEP    1
@@ -118,8 +126,18 @@
 
 //extra defs for no magic numbers
 #define maxInterrupt    15
-#define PLAYER_WIDTH    11
+#define PLAYER_WIDTH    11 // 11x11 player
+#define MAX_BOMBS 100
+#define BOMB_TIMER 300000
+#define BOMB_INTERVALS 3 // 3 different stages of bomb
 // 8 pixel wide player
+// keyboard definitions
+#define KEY_SPACE 0x29
+#define KEY_W 0x1D
+#define KEY_A 0x1c
+#define KEY_S 0x1B
+#define KEY_D 0x23
+#define KEY_C 0x21
 
 // Includes
 #include <stdlib.h>
@@ -139,6 +157,13 @@ typedef struct {
     int middleY;
     int curBlockX; // the x of the current block player is on
     int curBlockY; 
+    int bombID; 
+    int BlockX; // block location
+    int BlockY;
+    int bombArrX[MAX_BOMBS]; // stores X location of bomb.
+    int bombArrY[MAX_BOMBS]; // stores Y location of bomb. 
+    int bombTimer[MAX_BOMBS]; // stores timers for bombs. 
+    int dead; // if 1 you are dead
 } Player;
 
 Player p1; // at most we have 2 players
@@ -159,6 +184,11 @@ void keyboard_input();
 int calculateBlockX(); // given an x in pixels, returns x address in block
 int calculateBlockY(); // given an y in pixels, returns y address in block
 void updateMiddlePlayer(Player player); // updates middle x and y of player
+void checkBombs(Player player);
+void placeBomb(Player player); 
+void updatePlayer(Player player, int changeX, int changeY); // updates everything about player
+void updatePlayerBlock(Player player); 
+
 // global arrays: 
 int mapArray[BLOCK_RES_X][BLOCK_RES_Y] = {0}; // 304 by 240 in terms of 16 x 16 blocks
 int fullMapArray[GAME_RESOLUTION_X][GAME_RESOLUTION_Y] = {0}; // Pixel by pixel
@@ -487,7 +517,15 @@ void drawBlock(int x, int y, int blockType) {
                 color = stoneSprite[i][j];
             } else if (blockType == BRICK) {
                 color = brickSprite[i][j];
-            }
+            } else if (blockType == PLAYER1BOMB_ONE || PLAYER2BOMB_ONE) {
+                color = bombSpriteOne[j][i];
+            } else if (blockType == PLAYER1BOMB_TWO || PLAYER2BOMB_TWO) {
+                color = bombSpriteTwo[j][i];
+            } else if (blockType == PLAYER1BOMB_THREE || PLAYER2BOMB_THREE) {
+                color = bombSpriteThree[j][i];
+            } else if (blockType == EXPLODE) {
+                color = explosionSprite[j][i];
+            } 
             plot_pixel(x + i, y + j, color);
             fullMapArray[x + i][y +j] = blockType; 
         }
@@ -506,7 +544,16 @@ void initializePlayer1() {
     p1.bombNum = 1; // max bombs player can place at once
     p1.bombsPlaced = 0; // 
     p1.colour = RED; 
+    // p1.bombID = PLAYER1BOMB;
     updateMiddlePlayer(p1);
+    p1.BlockX = calculateBlockX(p1.x);
+    p1.BlockY = calculateBlockY(p1.y);
+    p1.dead = 0;
+    for (int i = 0; i < MAX_BOMBS; i++) {
+        p1.bombArrX[i] = NO_BOMB;
+        p1.bombArrY[i] = NO_BOMB;
+        p1.bombTimer[i] = NO_BOMB;
+    }
 }
 
 void initializePlayer2() {
@@ -516,9 +563,22 @@ void initializePlayer2() {
     p2.bombNum = 1; // max bombs player can place at once
     p2.bombsPlaced = 0; // 
     p2.colour = BLUE; 
+    // p2.bombID = PLAYER2BOMB; 
     updateMiddlePlayer(p2);
+    p2.BlockX = calculateBlockX(p2.x);
+    p2.BlockY = calculateBlockY(p2.y);
+    p2.dead = 0;
+    for (int i = 0; i < MAX_BOMBS; i++) {
+    p2.bombArrX[i] = NO_BOMB;
+    p2.bombArrY[i] = NO_BOMB;
+    p2.bombTimer[i] = NO_BOMB;
+    }
 }
 
+void updatePlayerBlock(Player player){
+    player.BlockX = calculateBlockX(player.x);
+    player.BlockY = calculateBlockY(player.y);
+}
 void updateMiddlePlayer(Player player) {
     player.middleX = player.x + HALF_OF_PLAYER;
     player.middleY = player.y + HALF_OF_PLAYER;
@@ -528,14 +588,24 @@ int checkLegalMove(Player player, int changeX, int changeY) {
     int xLoc = player.x + changeX;
     int yLoc = player.y + changeY;
     if (fullMapArray[xLoc][yLoc] == BRICK || fullMapArray[xLoc][yLoc] == STONE) {
-        return false;
-    }
+        legal = FALSE;
+    } else if (fullMapArray[xLoc][yLoc] == PLAYER1BOMB_ONE || fullMapArray[xLoc][yLoc] == PLAYER2BOMB_ONE 
+                || fullMapArray[xLoc][yLoc] == PLAYER1BOMB_TWO || fullMapArray[xLoc][yLoc] == PLAYER2BOMB_TWO
+                || fullMapArray[xLoc][yLoc] == PLAYER1BOMB_THREE || fullMapArray[xLoc][yLoc] == PLAYER2BOMB_THREE) {
+        if (fullMapArray[xLoc][yLoc] == fullMapArray[player.middleX][player.middleY]) {
+        } else
+            legal = FALSE;
+    } 
+    return legal; 
 }
 
 void updatePlayer(Player player, int changeX, int changeY) {
-    player.x += changeX;
-    player.y +=changeY; 
-    updateMiddlePlayer(player);
+    if (checkLegalMove(player, changeX, changeY) == TRUE) {
+        player.x += changeX;
+        player.y +=changeY; 
+        updateMiddlePlayer(player);
+        updatePlayer(player);
+    }
 }
 
 void drawPlayer(Player player) {
@@ -665,6 +735,59 @@ void keyboard_input() {
     return;
 }
 
+void placeBomb(Player player) {
+    if (player.bombNum > player.bombsPlaced) {
+        // check if player has enough bombs
+        player.bombsPlaced++; 
+        if (player.colour == RED) {
+            mapArray[player.BlockX][player.BlockY] = PLAYER1BOMB_ONE; 
+        } else 
+            mapArray[player.BlockX][player.BlockY] = PLAYER2BOMB_ONE; 
+
+        player.bombArrX[player.bombsPlaced - 1] = player.BlockX;
+        player.bombArrY[player.bombsPlaced - 1] = player.BlockY; 
+        player.bombTimer[player.bombsPlaced - 1] = BOMB_TIMER; 
+        // make all other elements in the array NO_BOMB
+        for (int i = player.bombsPlaced; i < MAX_BOMBS; i++) {
+            player.bombArrX[i] = NO_BOMB;
+            player.bombArrY[i] = NO_BOMB;
+            player.bombTimer[i] = NO_BOMB;
+        }
+    }
+}
+
+void checkBombs(Player player) {
+    // checks the timer on the bombs. if 0 EXPLODE! if NO_BOMB continue!
+    // otherwise COUNT DOWN!!!!
+    for (int i = 0; i < player.bombsPlaced; i++) {
+        if (player.bombTimer[i] == 0)  {
+            // EXPLOSION TIME
+
+        } else if (player.bombTimer[i] == BOMB_TIMER - (BOMB_TIMER / BOMB_INTERVALS)) {
+            if (player.colour == RED) {
+                mapArray[player.bombArrX[i]][player.bombArrY[i]] = PLAYER1BOMB_TWO; 
+            } else 
+                mapArray[player.bombArrX[i]][player.bombArrY[i]] = PLAYER2BOMB_TWO; 
+            player.bombTimer[i]--;        
+        }
+        else if (player.bombTimer[i] == BOMB_TIMER - 2 * (BOMB_TIMER / BOMB_INTERVALS)) {
+            if (player.colour == RED) {
+                mapArray[player.bombArrX[i]][player.bombArrY[i]] = PLAYER1BOMB_THREE; 
+            } else 
+                mapArray[player.bombArrX[i]][player.bombArrY[i]] = PLAYER2BOMB_THREE; 
+            player.bombTimer[i]--;        
+        } else 
+            player.bombTimer[i]--;
+    }
+}
+
+void deleteFirst(int arr[], int size) {
+    for (int i = 0; i < size - 1; i++) {
+        arr[i] = arr[i + 1]; // shift each element to the left
+    }
+    arr[size - 1] = NO_BOMB; // set last element to zero or null
+}
+
 int main(void) {
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
     
@@ -695,7 +818,7 @@ int main(void) {
                 keyboard_input();
                 drawHome();
                 for (int i = 0; i < maxInterrupt; i++) {
-                    if (keyInterrupts[i] == 0x29) {
+                    if (keyInterrupts[i] == KEY_SPACE) {
                         gameState = TWOP;
                         initializeFirst = TRUE;
                         break;
@@ -709,6 +832,12 @@ int main(void) {
             case TWOP:
                 keyboard_input();
                 drawBumber();
+                for (int i = 0; i < maxInterrupt; i++) {
+                    if (keyInterrupts[i] == KEY_C) {
+                        placeBomb(p1); 
+                    } else if (keyInterrupts[i] == )
+                    else if (keyInterrupts[i] == 0) break;
+                }
                 break;
             case OVER:
                 break;
