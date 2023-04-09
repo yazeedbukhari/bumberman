@@ -111,7 +111,6 @@
 #define PLAYER1BOMB_THREE 6
 
 // different stages of exploding 
-
 #define PLAYER2BOMB_ONE 7 
 #define PLAYER2BOMB_TWO 8
 #define PLAYER2BOMB_THREE 9
@@ -134,37 +133,36 @@
 #define GAMEOVER_SOLO_WIN 3
 #define GAMEOVER_SOLO_LOSE 4
 
-int gameoverState = 0; 
 //extra defs for no magic numbers
 #define maxInterrupt 15
 #define PLAYER_WIDTH 11
 // 11x11 player
-#define MAX_BOMBS 10
-#define MAX_EXPLOSIONS 20
-#define BOMB_TIMER 15
-#define BOMB_INTERVALS 3
+#define MAX_BOMBS       10
+#define MAX_EXPLOSIONS  20
+#define BOMB_TIMER      15
+#define BOMB_INTERVALS  3
 #define EXPLOSION_TIMER 3
  // 3 different stages of bomb
 // 8 pixel wide player
 // keyboard definitions
-#define MOVE_UP -1
-#define MOVE_LEFT -1
-#define MOVE_DOWN 1
-#define MOVE_RIGHT 1 
+#define MOVE_UP     -1
+#define MOVE_LEFT   -1
+#define MOVE_DOWN   1
+#define MOVE_RIGHT  1 
 
-#define KEY_SPACE 0x29
-#define KEY_W 0x1D
-#define KEY_A 0x1c
-#define KEY_S 0x1B
-#define KEY_D 0x23
-#define KEY_C 0x21
+#define KEY_SPACE   0x29
+#define KEY_UP1     0x1D    //W key
+#define KEY_LEFT1   0x1c    //A key
+#define KEY_DOWN1   0x1B    //S key
+#define KEY_RIGHT1  0x23    //D key
+#define KEY_BOMB1   0x21    //C key
 
 // player 2 definitions
-#define KEY_UP 0x75
-#define KEY_DOWN 0x72
-#define KEY_LEFT 0x6B
-#define KEY_RIGHT 0x74
-#define KEY_M 0x3A
+#define KEY_UP2     0x75    //up arrow key
+#define KEY_DOWN2   0x72    //down arrow key
+#define KEY_LEFT2   0x6B    //left arrow key
+#define KEY_RIGHT2  0x74    //right arrow key
+#define KEY_BOMB2   0x3A    //M key
 
 // Includes
 #include <stdlib.h>
@@ -206,8 +204,6 @@ typedef struct {
     int Y_BLOCKS[BLOCK_RES_X]; 
     int timer; 
 } Explosion;
-int numExplosions = 0;
-Explosion explosions[MAX_EXPLOSIONS];
 
 // Function definitions: 
 void initializeExplosionStruct(Explosion *explosion);
@@ -238,12 +234,18 @@ int checkLegalMove(int playerX, int playerY, int changeX, int changeY, Player pl
 int mapArray[BLOCK_RES_X][BLOCK_RES_Y] = {0}; // 304 by 240 in terms of 16 x 16 blocks
 int fullMapArray[GAME_RESOLUTION_X][GAME_RESOLUTION_Y] = {0}; // Pixel by pixel
 int keyInterrupts[maxInterrupt] = {0};
+Explosion explosions[MAX_EXPLOSIONS];
+int previousPosition[2][2]
+int previousPreviousPosition[2][2]; 
 
 // global variables:
 // i dont think these are necessary since we already defined gamestates, we on the FSM grind
 int brickChance = 0;
 int initializeFirst = TRUE; 
 int defaultMS = 1; //default movespeed is 1 pixel
+
+int gameoverState = 0;
+int numExplosions = 0;
 
 int gameState = HOME; //should initailzie at home
 
@@ -637,14 +639,16 @@ void initializePlayer2() {
     }
 }
 
-void updatePlayerBlock(Player *player){
+void updatePlayerBlock(Player *player) {
     player->BlockX = calculateBlockX(player->x);
     player->BlockY = calculateBlockY(player->y);
 }
+
 void updateMiddlePlayer(Player *player) {
     player->middleX = player->x + HALF_OF_PLAYER;
     player->middleY = player->y + HALF_OF_PLAYER;
 }
+
 int checkLegalMove(int playerX, int playerY, int changeX, int changeY, Player player) {
     int legal = TRUE;
 
@@ -733,6 +737,7 @@ void drawHome()  {
 int calculateBlockX(int x){
     return (x / BLOCK_WIDTH);
 } // given an x in pixels, returns x address in block
+
 int calculateBlockY(int y){
     return (y / BLOCK_WIDTH);
 } // given an y in pixels, returns y address in block
@@ -1039,6 +1044,53 @@ void deleteFirst(int arr[], int size) {
 //     arr[size - 1] = NO_BOMB; // set last element to zero or null
 // }
 
+void player1Controls(int i) {
+    if (keyInterrupts[i] == KEY_BOMB1) {
+        placeBomb(&p1); 
+    } 
+    else if (keyInterrupts[i] == KEY_BOMB2) {
+        // moving up decreases Y
+        placeBomb(&p2); 
+    } 
+    else if (keyInterrupts[i] == KEY_UP1) {
+        // moving up decreases Y
+        updatePlayer(&p1, 0, MOVE_UP);
+    } 
+    else if (keyInterrupts[i] == KEY_LEFT1) {
+        // moving left decreases X
+        updatePlayer(&p1, MOVE_LEFT, 0);
+    } 
+    else if (keyInterrupts[i] == KEY_DOWN1) {
+        // moving down
+        updatePlayer(&p1, 0, MOVE_DOWN);
+    } 
+    else if (keyInterrupts[i] == KEY_RIGHT1) {
+        // moving up decreases Y
+        updatePlayer(&p1, MOVE_RIGHT, 0);
+    }
+    return;  
+}
+
+void player2Controls(int i) {
+    if (keyInterrupts[i] == KEY_UP2) {
+        // moving up decreases Y
+        updatePlayer(&p2, 0, MOVE_UP);
+    }
+    else if (keyInterrupts[i] == KEY_LEFT2) {
+        // moving left decreases X
+        updatePlayer(&p2, MOVE_LEFT, 0);
+    }
+    else if (keyInterrupts[i] == KEY_DOWN2) {
+        // moving down
+        updatePlayer(&p2, 0, MOVE_DOWN);
+    } 
+    else if (keyInterrupts[i] == KEY_RIGHT2) {
+        // moving up decreases Y
+        updatePlayer(&p2, MOVE_RIGHT, 0);
+    }
+    return;
+}
+
 int main(void) {
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
     
@@ -1080,51 +1132,24 @@ int main(void) {
                 }
                 break;
             case ONEP:
+                keyboard_input();
+                for (int i = 0; i < maxInterrupt; i++) {
+                    player1Controls(i);
+                    player2Controls(i);
+                    if (keyInterrupts[i] == 0) break;
+                }
+                checkBombs(&p1);
+                checkExplosions();
+                checkPlayerLoc(&p1);
                 drawBumber();
                 break;
             case TWOP:
                 keyboard_input();
-                drawBumber();
                 for (int i = 0; i < maxInterrupt; i++) {
-                    // player 1
-
-                    if (keyInterrupts[i] == KEY_C) {
-                        placeBomb(&p1); 
-                    } else if (keyInterrupts[i] == KEY_M) {
-                        // moving up decreases Y
-                        placeBomb(&p2); 
-                    } else if (keyInterrupts[i] == KEY_W) {
-                        // moving up decreases Y
-                        updatePlayer(&p1, 0, MOVE_UP);
-                    } else if (keyInterrupts[i] == KEY_A) {
-                        // moving left decreases X
-                        updatePlayer(&p1, MOVE_LEFT, 0);
-                    } else if (keyInterrupts[i] == KEY_S) {
-                        // moving down
-                        updatePlayer(&p1, 0, MOVE_DOWN);
-                    } else if (keyInterrupts[i] == KEY_D) {
-                        // moving up decreases Y
-                        updatePlayer(&p1, MOVE_RIGHT, 0);
-
-
-                        // player 2
-                    }  else if (keyInterrupts[i] == KEY_UP) {
-                        // moving up decreases Y
-                        updatePlayer(&p2, 0, MOVE_UP);
-                    } else if (keyInterrupts[i] == KEY_LEFT) {
-                        // moving left decreases X
-                        updatePlayer(&p2, MOVE_LEFT, 0);
-                    } else if (keyInterrupts[i] == KEY_DOWN) {
-                        // moving down
-                        updatePlayer(&p2, 0, MOVE_DOWN);
-                    } else if (keyInterrupts[i] == KEY_RIGHT) {
-                        // moving up decreases Y
-                        updatePlayer(&p2, MOVE_RIGHT, 0);
-                    }
-                    else if (keyInterrupts[i] == 0) break;
+                    player1Controls(i);
+                    player2Controls(i);
+                    if (keyInterrupts[i] == 0) break;
                 }
-
-
                 // check the bombs 
                 // Player *&p1 = &p1;
                 checkBombs(&p1);
@@ -1133,7 +1158,6 @@ int main(void) {
                 checkExplosions(); 
                 checkPlayerLoc(&p1);
                 checkPlayerLoc(&p2);
-
                 if ((p1.dead == TRUE) || (p2.dead == TRUE))  {
                     gameState = OVER;
                     if ((p1.dead == TRUE && (p2.dead == TRUE))) {
@@ -1143,6 +1167,7 @@ int main(void) {
                     } else
                         gameoverState = GAMEOVER_P1;
                 }
+                drawBumber();
                 break;
 
             case OVER:
@@ -1157,17 +1182,7 @@ int main(void) {
                 }
                 break;
         }
-         // commented out to not mess with drawing code for now
-        
-        /*
-        if (gameOver) {
 
-        }
-        else if (multiPlayer == 1) {
-            drawBumber();
-        } else
-            drawHome(); 
-        */
         wait_for_vsync(); // swap front and back buffers on VGA vertical sync
         pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
     }
