@@ -105,18 +105,21 @@
 #define GRASS   0 
 #define STONE   1
 #define BRICK   2
-#define BOMB    3
-#define EXPLODE 4
-#define PLAYER1BOMB_ONE 5 // different stages of exploding 
-#define PLAYER1BOMB_TWO 6
-#define PLAYER1BOMB_THREE 7
+#define EXPLODE 3
+#define PLAYER1BOMB_ONE 4 
+#define PLAYER1BOMB_TWO 5
+#define PLAYER1BOMB_THREE 6
 
-#define PLAYER2BOMB_ONE 10 
-#define PLAYER2BOMB_TWO 11
-#define PLAYER2BOMB_THREE 12
+// different stages of exploding 
 
-#define BLOCK_WIDTH 16 // 16x16 block
-#define HALF_OF_PLAYER 5 // 11 x 11 player, 1 + 5 = 6 makes the middle
+#define PLAYER2BOMB_ONE 7 
+#define PLAYER2BOMB_TWO 8
+#define PLAYER2BOMB_THREE 9
+
+#define BLOCK_WIDTH 16
+// 16x16 block
+#define HALF_OF_PLAYER 5
+// 11 x 11 player, 1 + 5 = 6 makes the middle
 
 // Game State Definitions
 #define HOME    0
@@ -125,11 +128,13 @@
 #define OVER    3
 
 //extra defs for no magic numbers
-#define maxInterrupt    15
-#define PLAYER_WIDTH    11 // 11x11 player
+#define maxInterrupt 15
+#define PLAYER_WIDTH 11
+// 11x11 player
 #define MAX_BOMBS 10
-#define BOMB_TIMER 3
-#define BOMB_INTERVALS 3 // 3 different stages of bomb
+#define BOMB_TIMER 15
+#define BOMB_INTERVALS 3
+ // 3 different stages of bomb
 // 8 pixel wide player
 // keyboard definitions
 #define MOVE_UP -1
@@ -529,15 +534,21 @@ void drawBlock(int x, int y, int blockType) {
                 color = stoneSprite[i][j];
             } else if (blockType == BRICK) {
                 color = brickSprite[i][j];
-            } else if (blockType == PLAYER1BOMB_ONE || PLAYER2BOMB_ONE) {
-                color = bombSpriteOne[j][i];
-            } else if (blockType == PLAYER1BOMB_TWO || PLAYER2BOMB_TWO) {
-                color = bombSpriteTwo[j][i];
-            } else if (blockType == PLAYER1BOMB_THREE || PLAYER2BOMB_THREE) {
-                color = bombSpriteThree[j][i];
             } else if (blockType == EXPLODE) {
                 color = explosionSprite[j][i];
-            } 
+            } else if (blockType == PLAYER1BOMB_THREE) {
+                color = bombSpriteThree[j][i];
+            } else if (blockType == PLAYER2BOMB_THREE) {
+                color = bombSpriteThree[j][i];
+            } else if (blockType == PLAYER1BOMB_TWO) {
+                color = bombSpriteTwo[j][i];
+            } else if (blockType == PLAYER2BOMB_TWO) {
+                color = bombSpriteTwo[j][i];
+            } else if (blockType == PLAYER1BOMB_ONE) {
+                color = bombSpriteOne[j][i];
+            } else if (blockType == PLAYER2BOMB_ONE) {
+                color = bombSpriteOne[j][i];
+            }
             plot_pixel(x + i, y + j, color);
             fullMapArray[x + i][y +j] = blockType; 
         }
@@ -699,6 +710,7 @@ void drawBumber() {
             drawBlock(i, j, mapArray[i / BLOCK_WIDTH][j / BLOCK_WIDTH]);
         }
     }
+
     drawPlayer(p1); 
     if (gameState == TWOP) 
         drawPlayer(p2);
@@ -786,11 +798,11 @@ void placeBomb(Player *player) {
         player->bombArrY[player->bombsPlaced - 1] = player->BlockY; 
         player->bombTimer[player->bombsPlaced - 1] = BOMB_TIMER; 
         // make all other elements in the array NO_BOMB
-        for (int i = player->bombsPlaced; i < MAX_BOMBS; i++) {
-            player->bombArrX[i] = NO_BOMB;
-            player->bombArrY[i] = NO_BOMB;
-            player->bombTimer[i] = NO_BOMB;
-        }
+        // for (int i = player->bombsPlaced; i < MAX_BOMBS; i++) {
+        //     player->bombArrX[i] = NO_BOMB;
+        //     player->bombArrY[i] = NO_BOMB;
+        //     player->bombTimer[i] = NO_BOMB;
+        // }
     }
 }
 
@@ -800,7 +812,7 @@ void checkBombs(Player *player) {
     for (int i = 0; i < player->bombsPlaced; i++) {
         if (player->bombTimer[i] == 0)  {
             // EXPLOSION TIME
-
+            
         } else if (player->bombTimer[i] == BOMB_TIMER - (BOMB_TIMER / BOMB_INTERVALS)) {
             if (player->colour == RED) {
                 mapArray[player->bombArrX[i]][player->bombArrY[i]] = PLAYER1BOMB_TWO; 
@@ -814,8 +826,9 @@ void checkBombs(Player *player) {
             } else 
                 mapArray[player->bombArrX[i]][player->bombArrY[i]] = PLAYER2BOMB_THREE; 
             player->bombTimer[i]--;        
-        } else 
+        } else {
             player->bombTimer[i]--;
+        }
     }
 }
 
