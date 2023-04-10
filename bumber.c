@@ -2158,11 +2158,14 @@ void drawPlayer(Player *player) {
     // }
     for (int i = 0; i < PLAYER_WIDTH; i++) {
         for (int j = 0; j < PLAYER_WIDTH; j++) {
-            if (player->colour == RED) // p1
-                plot_pixel(i + player->x, j + player->y, playerOneSprite[j][i]); 
-            else // p2
-                plot_pixel(i + player->x, j + player->y, playerTwoSprite[j][i]); 
+            if (playerOneSprite[j][i]!= 0x4947) {
+                if (player->colour == RED) // p1
+                    plot_pixel(i + player->x, j + player->y, playerOneSprite[j][i]); 
+                else // p2
+                    plot_pixel(i + player->x, j + player->y, playerTwoSprite[j][i]); 
+            }
         }   
+
     }
 }
 
@@ -2209,6 +2212,7 @@ int calculateBlockY(int y){
     return (y / BLOCK_WIDTH);
 } // given an y in pixels, returns y address in block
 void spawnPowerUp() {
+    srand(time(NULL));
     int spawned = FALSE;
     numPowerUpsOnScreen++;
     while (spawned == FALSE) {
