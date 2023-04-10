@@ -138,7 +138,7 @@
 #define PLAYER_WIDTH    11     // 11x11 player
 #define MAX_BOMBS       10
 #define MAX_EXPLOSIONS  20
-#define BOMB_TIMER      15
+#define BOMB_TIMER      60
 #define BOMB_INTERVALS  3
 #define EXPLOSION_TIMER 3
 
@@ -149,7 +149,7 @@
 #define POWERUP_RADIUS          100
 #define POWERUP_MOREBOMB        101
 #define POWERUP_MOVESPEED       102
-#define MAX_MOVESPEED           4
+#define MAX_MOVESPEED           6
 #define MAX_POWERUPS_ONSCREEN   3
 
 // 3 power ups in total: Movement speed, #bombs, bomb radius
@@ -163,6 +163,7 @@
 
 #define KEY_SPACE   0x29
 #define KEY_ENTER   0x5A
+#define KEY_OVER    0x34    //G key
 
 #define KEY_UP1     0x1D    //W key
 #define KEY_LEFT1   0x1c    //A key
@@ -207,10 +208,10 @@ typedef struct {
     int dead; // if 1 you are dead
 } Player;
 
-typdef struct {
+typedef struct {
     int x;
     int y;
-} Balloon;
+} Enemy;
 
 typedef struct {
     // at most we are going to have BLOCK_RES_X radius explosion
@@ -223,9 +224,9 @@ typedef struct {
 Player p1; // at most we have 2 players
 Player p2;
 
-Balloon b1; // at most 3 balloons for singleplayer
-Balloon b2;
-Balloon b3;
+Enemy b1; // at most 3 balloons for singleplayer
+Enemy b2;
+Enemy b3;
 
 // Function definitions: 
 void initializeExplosionStruct(Explosion *explosion);
@@ -255,11 +256,11 @@ int checkLegalMove(int playerX, int playerY, int changeX, int changeY, Player pl
 void checkPowerUp();
 void spawnPowerUp();
 void initializeBalloons();
-void updateBalloon(Balloon *balloon, int changeX, int changeY);
+void updateBalloon(Enemy *Enemy, int changeX, int changeY);
 
 // global arrays: 
-int mapArray[BLOCK_RES_X][BLOCK_RES_Y] = {0}; // 304 by 240 in terms of 16 x 16 blocks
-int fullMapArray[GAME_RESOLUTION_X][GAME_RESOLUTION_Y] = {0}; // Pixel by pixel
+int mapArray[BLOCK_RES_X][BLOCK_RES_Y] = {{0}}; // 304 by 240 in terms of 16 x 16 blocks
+int fullMapArray[GAME_RESOLUTION_X][GAME_RESOLUTION_Y] = {{0}}; // Pixel by pixel
 int keyInterrupts[maxInterrupt] = {0};
 Explosion explosions[MAX_EXPLOSIONS];
 int previousPosition[2][2];
@@ -269,7 +270,7 @@ int previousPreviousPosition[2][2];
 // i dont think these are necessary since we already defined gamestates, we on the FSM grind
 int brickChance = 0;
 int initializeFirst = TRUE; 
-int defaultMS = 1; //default movespeed is 1 pixel
+int defaultMS = 2; //default movespeed is 1 pixel
 int numPowerUpsOnScreen = 0;
 int powerUpTimer = NO_BOMB; 
 int balloonsSpawned = 0;
@@ -2169,7 +2170,7 @@ void initializeBalloons() {
     }
 }
 
-void updateBalloon(Balloon *balloon, int changeX, int changeY) {
+void updateBalloon(Enemy *Enemy, int changeX, int changeY) {
 
 }
 
@@ -2366,32 +2367,32 @@ void initializeMap() {
     }    
 
     // add the bricks
-    // srand(time(NULL));
-    // for (int i = 1; i < BLOCK_RES_X - 1;  i++){
-    //     for (int j = 1; j < BLOCK_RES_Y - 1; j++) {
-    //         // don't draw bricks if it is the starting 3 squares for player of if it is a wall
-    //         if (mapArray[i][j] == STONE || (i == 1 && j == 1) || (i == 1 && j == 2) || (i == 2 && j == 1)  
-    //             || (i == BLOCK_RES_X - 2 && j == BLOCK_RES_Y - 2) || (i == BLOCK_RES_X - 3 && j == BLOCK_RES_Y - 2) || (i == BLOCK_RES_X - 2 && j == BLOCK_RES_Y - 3))
-    //             continue;
-    //         else {
-    //             // randomly draw a brick. 1 in brickChance chance of being blank. 
-    //             int num = rand()% brickChance; 
-    //             if (num % brickChance - 1 == 0) {
-    //                 continue;
-    //             } else {
-    //                 mapArray[i][j] = BRICK; 
-    //             }
-    //         }
-    //     }
-    // }
-    // // make the edges of player spawn a brick
-    // // top left
-    // mapArray[3][1] = BRICK;
-    // mapArray[1][3] = BRICK;
+    srand(time(NULL));
+    for (int i = 1; i < BLOCK_RES_X - 1;  i++){
+        for (int j = 1; j < BLOCK_RES_Y - 1; j++) {
+            // don't draw bricks if it is the starting 3 squares for player of if it is a wall
+            if (mapArray[i][j] == STONE || (i == 1 && j == 1) || (i == 1 && j == 2) || (i == 2 && j == 1)  
+                || (i == BLOCK_RES_X - 2 && j == BLOCK_RES_Y - 2) || (i == BLOCK_RES_X - 3 && j == BLOCK_RES_Y - 2) || (i == BLOCK_RES_X - 2 && j == BLOCK_RES_Y - 3))
+                continue;
+            else {
+                // randomly draw a brick. 1 in brickChance chance of being blank. 
+                int num = rand()% brickChance; 
+                if (num % brickChance - 1 == 0) {
+                    continue;
+                } else {
+                    mapArray[i][j] = BRICK; 
+                }
+            }
+        }
+    }
+    // make the edges of player spawn a brick
+    // top left
+    mapArray[3][1] = BRICK;
+    mapArray[1][3] = BRICK;
 
-    // // bottom right;
-    // mapArray[BLOCK_RES_X- 4][BLOCK_RES_Y - 2] = BRICK;
-    // mapArray[BLOCK_RES_X - 2][BLOCK_RES_Y - 4] = BRICK;
+    // bottom right;
+    mapArray[BLOCK_RES_X- 4][BLOCK_RES_Y - 2] = BRICK;
+    mapArray[BLOCK_RES_X - 2][BLOCK_RES_Y - 4] = BRICK;
 }
 
 void keyboard_input() {
@@ -2699,7 +2700,7 @@ int main(void) {
     while (1)
     {
         /* Erase any boxes and lines that were drawn in the last iteration */
-        //clear_screen(); //for now
+        clear_screen(); //for now
         
         
         switch (gameState) { // swtich looks better than too many if elses
@@ -2711,14 +2712,14 @@ int main(void) {
                         gameState = TWOP;
                         initializeFirst = TRUE;
                         brickChance = 2; 
-                        clear_screen(); 
+                        // clear_screen(); 
                         break;
                     }
                     else if (keyInterrupts[i] == KEY_ENTER) {
                         gameState = ONEP;
                         initializeFirst = TRUE;
                         brickChance = 2; 
-                        clear_screen(); 
+                        // clear_screen(); 
                         break;
                     }
                     else if (keyInterrupts[i] == 0) break;
@@ -2767,9 +2768,12 @@ int main(void) {
                 keyboard_input();
                 drawOver(); // different victory screens
                 for (int i = 0; i < maxInterrupt; i++) {
-                    if (keyInterrupts[i] == KEY_SPACE) {
+                    if (keyInterrupts[i] == KEY_OVER) {
                         // clear_screen(); 
                         gameState = HOME;
+                        for (int j = 0; j < maxInterrupt; j++) {
+                            keyInterrupts[j] = 0x0;
+                        }
                         break;
                     }
                     else if (keyInterrupts[i] == 0) break;
