@@ -1,2 +1,2 @@
-# bumberman
+# Bumberman
 Bomberman

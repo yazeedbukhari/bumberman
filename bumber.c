@@ -97,6 +97,8 @@
 #define GAME_RESOLUTION_Y 240
 #define BLOCK_RES_X 19
 #define BLOCK_RES_Y 15
+
+
 #define FALSE   0
 #define TRUE    1
 #define NO_BOMB -1
@@ -138,9 +140,11 @@
 #define PLAYER_WIDTH    11     // 11x11 player
 #define MAX_BOMBS       10
 #define MAX_EXPLOSIONS  20
-#define BOMB_TIMER      15
+#define BOMB_TIMER      45
 #define BOMB_INTERVALS  3
 #define EXPLOSION_TIMER 3
+#define MAX_ENEMIES     1
+#define ENEMY_MOVE_TIME 200000000
 
 // how long for power ups to spawn
 #define INITIAL_POWERUP_TIMER   15
@@ -153,7 +157,7 @@
 #define MAX_POWERUPS_ONSCREEN   3
 
 // 3 power ups in total: Movement speed, #bombs, bomb radius
- // 3 different stages of bomb
+// 3 different stages of bomb
 // 8 pixel wide player
 // keyboard definitions
 #define MOVE_UP     -1
@@ -177,7 +181,7 @@
 #define KEY_DOWN2   0x72    //down arrow key
 #define KEY_LEFT2   0x6B    //left arrow key
 #define KEY_RIGHT2  0x74    //right arrow key
-#define KEY_BOMB2   0x3A    //M key
+#define KEY_BOMB2   0x4A    // / key
 
 // Includes
 #include <stdlib.h>
@@ -212,6 +216,8 @@ typedef struct {
 typedef struct {
     int x;
     int y;
+    int moveSpeed;
+    int dead;
 } Enemy;
 
 typedef struct {
@@ -222,17 +228,9 @@ typedef struct {
     int timer; 
 } Explosion;
 
-Player p1; // at most we have 2 players
-Player p2;
-
-Enemy b1; // at most 3 balloons for singleplayer
-Enemy b2;
-Enemy b3;
-
 // Function definitions: 
 void initializeExplosionStruct(Explosion *explosion);
 void initializeExplosion();
-void playBumber();
 void explosion(int startingX, int startingY, int radius);
 void plot_pixel(int x, int y, short int line_color);
 void clear_screen();
@@ -256,8 +254,10 @@ void initalizeExplosion();
 int checkLegalMove(int playerX, int playerY, int changeX, int changeY, Player player);
 void checkPowerUp();
 void spawnPowerUp();
-void initializeBalloons();
-void updateBalloon(Enemy *Enemy, int changeX, int changeY);
+void initializeEnemies();
+void updateEnemy(Enemy *enemy, int i);
+void drawEnemy(Enemy *enemy);
+int checkLegalMoveEnemy(int enemyX, int enemyY, int changeX, int changeY, Enemy enemy);
 
 // global arrays: 
 int mapArray[BLOCK_RES_X][BLOCK_RES_Y] = {{0}}; // 304 by 240 in terms of 16 x 16 blocks
@@ -269,16 +269,24 @@ int previousPreviousPosition[2][2];
 
 // global variables:
 // i dont think these are necessary since we already defined gamestates, we on the FSM grind
-int brickChance = 0;
+int brickChance = 10;
 int initializeFirst = TRUE; 
 int defaultMS = 2; //default movespeed is 1 pixel
 int numPowerUpsOnScreen = 0;
 int powerUpTimer = NO_BOMB; 
-int balloonsSpawned = 0;
 int gameoverState = 0;
 int numExplosions = 0;
+int numEnemiesSpawned;
+int numEnemiesDead;
+int powerups;
 
 int gameState = HOME;
+
+// used struct initializations
+Player p1; // at most we have 2 players
+Player p2;
+
+Enemy E[MAX_ENEMIES];
 
 // Sprites (images of blocks / player.. etc)
 
@@ -2035,10 +2043,6 @@ void drawBlock(int x, int y, int blockType) {
 
 }
 
-void playBumber() {
-    
-}
-
 void initializePlayer1() {
     p1.x = 1 * BLOCK_WIDTH + 2; // x Location
     p1.y = 1 * BLOCK_WIDTH + 2; // y location
@@ -2145,35 +2149,76 @@ void updatePlayer(Player *player, int changeX, int changeY) {
 
 }
 
-void initializeBalloons() {
+void initializeEnemies() {
     srand(time(NULL));
-    while(balloonsSpawned < 3) {
+    while(numEnemiesSpawned < MAX_ENEMIES) {
         int randomX = rand()%BLOCK_RES_X;
         int randomY = rand()%BLOCK_RES_Y;
-        if ((mapArray[randomX][randomY] == GRASS) &&
-             randomX >= BLOCK_RES_X/2 &&
-             randomY >= BLOCK_RES_Y/2) {
-            // spawn it 
-            balloonsSpawned++;
+        if ((mapArray[randomX][randomY] == GRASS) && (
+             randomX >= BLOCK_RES_X/2 ||
+             randomY >= BLOCK_RES_Y/2)) {
+            // spawn it
 
-            if (balloonsSpawned == 0) {
-                b1.x = randomX;
-                b1.y = randomY;
-            }
-            else if (balloonsSpawned == 1) {
-                b2.x = randomX;
-                b2.y = randomY;
-            }
-            else {
-                b3.x = randomX;
-                b3.y = randomY;
-            }
+            E[numEnemiesSpawned].x = randomX * BLOCK_WIDTH;
+            E[numEnemiesSpawned].y = randomY * BLOCK_WIDTH;
+            E[numEnemiesSpawned].dead = FALSE;
+            E[numEnemiesSpawned].moveSpeed = defaultMS;
+
+            numEnemiesSpawned++;
         }
     }
 }
 
-void updateBalloon(Enemy *Enemy, int changeX, int changeY) {
+int checkLegalMoveEnemy(int enemyX, int enemyY, int changeX, int changeY, Enemy enemy) {
+    int legal = TRUE;
 
+    if (fullMapArray[enemyX + changeX][enemyY + changeY] == BRICK) {
+        legal = FALSE;
+    } else if (fullMapArray[enemyX + changeX][enemyY + changeY] == STONE) {
+        legal = FALSE;
+    } else if (fullMapArray[enemyX + changeX][enemyY + changeY] == PLAYER1BOMB_ONE || fullMapArray[enemyX + changeX][enemyY + changeY] == PLAYER2BOMB_ONE 
+                || fullMapArray[enemyX + changeX][enemyY + changeY] == PLAYER1BOMB_TWO || fullMapArray[enemyX + changeX][enemyY + changeY] == PLAYER2BOMB_TWO
+                || fullMapArray[enemyX + changeX][enemyY + changeY] == PLAYER1BOMB_THREE || fullMapArray[enemyX + changeX][enemyY + changeY] == PLAYER2BOMB_THREE) {
+    // can move through their own bomb
+        legal = FALSE;
+    }
+
+    return legal; 
+}
+
+void updateEnemy(Enemy *enemy, int i) {
+    srand(time(NULL));
+
+    int random = (rand()+i)%10;
+    //int moveSpd = enemy->moveSpeed;
+    int changeX = 0, 
+        changeY = 0;
+
+    if (random%3 == 0) 
+        changeX = MOVE_RIGHT;
+    else if (random%3 == 1)
+        changeX = MOVE_LEFT;
+
+    if (random >=6)
+        changeY = MOVE_UP;
+    else if (random <= 3)
+        changeY = MOVE_DOWN;
+
+    for (int moveSpd = enemy->moveSpeed; moveSpd > 0; moveSpd --) {
+        int legalMove = TRUE; 
+        for (int i = 0; i < PLAYER_WIDTH; i += PLAYER_WIDTH - 1) {
+            for (int j = 0; j < PLAYER_WIDTH; j += PLAYER_WIDTH - 1) {
+                if (checkLegalMoveEnemy(enemy->x + i, enemy->y + j, changeX * moveSpd, changeY * moveSpd, *enemy) == FALSE){
+                    legalMove = FALSE;
+                }
+            }
+        }
+        if (legalMove == TRUE) {
+            enemy->x += changeX * moveSpd;
+            enemy->y += changeY * moveSpd; 
+            break; 
+        }
+    }
 }
 
 void initializeEverything() {
@@ -2186,7 +2231,9 @@ void initializeEverything() {
         powerUpTimer = INITIAL_POWERUP_TIMER; 
         if (gameState == ONEP) {
             // initialize multiple balloons
-            initializeBalloons();
+            numEnemiesSpawned = 0;
+            numEnemiesDead = 0;
+            initializeEnemies();
         }
         if (gameState == TWOP) {
             // initialize player 2
@@ -2202,6 +2249,7 @@ void initializeEverything() {
         initializeFirst = FALSE;
     }
 }
+
 void drawPlayer(Player *player) {
     // take in type player to determine where to draw.
     // delete the old player 
@@ -2221,6 +2269,17 @@ void drawPlayer(Player *player) {
                     plot_pixel(i + player->x, j + player->y, playerOneSprite[j][i]); 
                 else // p2
                     plot_pixel(i + player->x, j + player->y, playerTwoSprite[j][i]); 
+            }
+        }   
+
+    }
+}
+
+void drawEnemy(Enemy *enemy) {
+    for (int i = 0; i < PLAYER_WIDTH; i++) {
+        for (int j = 0; j < PLAYER_WIDTH; j++) {
+            if (playerOneSprite[j][i]!= 0x4947) {
+                plot_pixel(i + enemy->x, j + enemy->y, playerTwoSprite[j][i]); 
             }
         }   
 
@@ -2252,15 +2311,6 @@ void drawOver()  {
 		}
 	}	    
 }
-
-// void drawPlayer(Player player) {
-// // take in type player to determine where to draw.
-//     for (int i = 0; i < PLAYER_WIDTH; i++) {
-//         for (int j = 0; j < PLAYER_WIDTH; j++) {
-//             plot_pixel(i + player.x, j + player.y, playerSprite[i][j]);           
-//         }   
-//     }
-// }
 
 int calculateBlockX(int x){
     return (x / BLOCK_WIDTH);
@@ -2297,14 +2347,22 @@ void spawnPowerUp() {
 }
 
 void checkPowerUp() {
-    if (powerUpTimer == 0) {
-        //spawn power up and reset timer
+
+    if (ONEP) {
         if (numPowerUpsOnScreen < MAX_POWERUPS_ONSCREEN) {
             spawnPowerUp();
         }
-        powerUpTimer = POWERUP_TIMER;
-    } else {
-        powerUpTimer--;
+    }
+    else {
+        if (powerUpTimer == 0) {
+            //spawn power up and reset timer
+            if (numPowerUpsOnScreen < MAX_POWERUPS_ONSCREEN) {
+                spawnPowerUp();
+            }
+            powerUpTimer = POWERUP_TIMER;
+        } else {
+            powerUpTimer--;
+        }
     }
 }
 
@@ -2313,12 +2371,18 @@ void drawBumber() {
     // 304 by 240
     for (int i = 0; i < GAME_RESOLUTION_X; i += BLOCK_WIDTH) {
         for (int j = 0; j < GAME_RESOLUTION_Y; j+= BLOCK_WIDTH) {
-            //if ( (mapArray[i / BLOCK_WIDTH][j / BLOCK_WIDTH] != STONE) && (mapArray[i / BLOCK_WIDTH][j / BLOCK_WIDTH] != BRICK))
-                drawBlock(i, j, mapArray[i / BLOCK_WIDTH][j / BLOCK_WIDTH]);
+            // if ( (mapArray[i / BLOCK_WIDTH][j / BLOCK_WIDTH] == STONE) && (mapArray[i / BLOCK_WIDTH][j / BLOCK_WIDTH] == BRICK)) continue;
+            drawBlock(i, j, mapArray[i / BLOCK_WIDTH][j / BLOCK_WIDTH]);
         }
     }
 
     drawPlayer(&p1); 
+    if (gameState == ONEP) {
+        for (int i = 0; i < numEnemiesSpawned; i++) {
+            if (E[i].dead == TRUE) continue;
+            drawEnemy(&E[i]);
+        }
+    }
     if (gameState == TWOP) 
         drawPlayer(&p2);
 }
@@ -2330,6 +2394,7 @@ void initializeExplosionStruct(Explosion *explosion) {
         explosion->Y_BLOCKS[i] = NO_BOMB;
     }
 }
+
 void initializeExplosion() {
     for (int i = 0; i < MAX_EXPLOSIONS; i++)  {
         Explosion temp;
@@ -2337,7 +2402,6 @@ void initializeExplosion() {
         explosions[i] = temp; 
     }
 }
-
 
 void initializeMap() {
     // everything is grass by default, so we should just add in blocks
@@ -2379,10 +2443,10 @@ void initializeMap() {
             else {
                 // randomly draw a brick. 1 in brickChance chance of being blank. 
                 int num = rand()% brickChance; 
-                if (num % brickChance - 1 == 0) {
-                    continue;
-                } else {
+                if (num == 5 || num == 2) {
                     mapArray[i][j] = BRICK; 
+                } else {
+                    continue;
                 }
             }
         }
@@ -2578,6 +2642,18 @@ void checkExplosions()  {
     }
 }
 
+void checkEnemyLoc(Enemy *enemy) {
+       for (int i = 0; i < PLAYER_WIDTH; i += PLAYER_WIDTH - 1) {
+            for (int j = 0; j < PLAYER_WIDTH; j += PLAYER_WIDTH - 1) {
+                if (fullMapArray[enemy->x + i][enemy->y + j] == EXPLODE) {
+                    enemy->dead = TRUE; 
+                    numEnemiesDead++;
+                    return;
+                }
+        }
+    } 
+}
+
 void checkPlayerLoc(Player *player) {
     // checks if a player is on a power -up / explosion... etc.
     // check dead first. We use return statements to avoid double power up
@@ -2586,6 +2662,18 @@ void checkPlayerLoc(Player *player) {
             if (fullMapArray[player->x + i][player->y + j] == EXPLODE) {
                 player->dead = TRUE; 
                 return;
+            }
+        }
+    }
+    if (gameState == ONEP) {
+        for (int k = 0; k < numEnemiesSpawned; k++) {
+            for (int i = 0; i < PLAYER_WIDTH; i += PLAYER_WIDTH - 1) {
+                for (int j = 0; j < PLAYER_WIDTH; j += PLAYER_WIDTH - 1) {
+                    if (((player->x+i >= E[k].x) && (player->x+1 <= (E[k].x + PLAYER_WIDTH - 1))) && ((player->y + j) >= E[k].y) && ((player->y + j) <= (E[k].y + PLAYER_WIDTH - 1))) {
+                        player->dead = TRUE; 
+                        return;
+                    }
+                }
             }
         }
     }
@@ -2685,6 +2773,14 @@ int main(void) {
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
     
     // declare other variables(not shown)
+    
+    // initialize a9 private timer
+    volatile int *timer_base = (int *) MPCORE_PRIV_TIMER;
+    *timer_base = ENEMY_MOVE_TIME;
+    *(timer_base + 2) = 0x3;
+
+    // initialize keys
+    volatile int *key_base = (int *) KEY_BASE;
 
 
     /* set front pixel buffer to start of FPGA On-chip memory */
@@ -2714,15 +2810,15 @@ int main(void) {
                     if (keyInterrupts[i] == KEY_MULTIPLAYER) {
                         gameState = TWOP;
                         initializeFirst = TRUE;
-                        brickChance = 2; 
-                        // clear_screen(); 
+                        powerups = TRUE;
+                        //clear_screen(); 
                         break;
                     }
                     else if (keyInterrupts[i] == KEY_ENTER) {
                         gameState = ONEP;
                         initializeFirst = TRUE;
-                        brickChance = 2; 
-                        // clear_screen(); 
+                        powerups = FALSE;
+                        //clear_screen(); 
                         break;
                     }
                     else if (keyInterrupts[i] == 0) break;
@@ -2735,10 +2831,45 @@ int main(void) {
                     player1Controls(i);
                     if (keyInterrupts[i] == 0) break;
                 }
-                checkBombs(&p1);
-                checkExplosions();
-                checkPlayerLoc(&p1);
+
+                if (*(key_base + 3) != 0) {
+                    int temp = *(key_base + 3);
+                    *(key_base + 3) = temp;
+
+                    if (powerups == TRUE) 
+                        powerups = FALSE;
+                    else
+                        powerups = TRUE;
+                }
+
+                if (powerups == TRUE)
+                    checkPowerUp(); 
+
+                checkBombs(&p1);    // check
+                checkExplosions();  // check
+
+                if (*(timer_base + 3) != 0) {
+                    for (int i = 0; i < numEnemiesSpawned; i++) {
+                        if (E[i].dead == TRUE) continue;
+                        updateEnemy(&E[i], i);
+                    }
+                    *(timer_base + 3) = 1;
+                }
+
+                checkPlayerLoc(&p1);    //check
+                for (int i = 0; i < numEnemiesSpawned; i++) {
+                    if (E[i].dead == TRUE) continue;
+                    checkEnemyLoc(&E[i]);
+                }
                 drawBumber();
+                if (p1.dead == TRUE)  {
+                    gameState = OVER;
+                    gameoverState = GAMEOVER_SOLO_LOSE;
+                }
+                if ((numEnemiesDead == numEnemiesSpawned) && (p1.dead == FALSE)) {
+                    gameState = OVER;
+                    gameoverState = GAMEOVER_SOLO_WIN;
+                }
                 break;
             case TWOP:
                 initializeEverything();
@@ -2766,13 +2897,12 @@ int main(void) {
                 }
                 drawBumber();
                 break;
-
             case OVER:
                 keyboard_input();
                 drawOver(); // different victory screens
                 for (int i = 0; i < maxInterrupt; i++) {
                     if (keyInterrupts[i] == KEY_OVER) {
-                        // clear_screen(); 
+                        //clear_screen(); 
                         gameState = HOME;
                         for (int j = 0; j < maxInterrupt; j++) {
                             keyInterrupts[j] = 0x0;
