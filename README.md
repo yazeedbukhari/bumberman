@@ -17,3 +17,6 @@ In single player:
 The goal is to blow up the blue character
 The controls for the player (red) are 'W','A','S','D' to move, and 'C' to place a bomb. 
 Power ups can be spawned by pressing a switch on the DE1-SoC board. 
+
+Image of game: 
+![image](https://user-images.githubusercontent.com/123594608/235884295-99655fe9-e10f-40b7-a13e-e4d9f8665714.png)
